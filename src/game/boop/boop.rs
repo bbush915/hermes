@@ -391,18 +391,6 @@ impl Game for Boop {
     type Checkpoint = Checkpoint;
 
     fn outcome(&self) -> Outcome {
-        // NOTE - Player
-
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
-            if (self.player_cats & mask) == mask {
-                return Outcome::Win;
-            }
-        }
-
-        if self.player_cats.count_ones() as u8 == Self::POOL_SIZE {
-            return Outcome::Win;
-        }
-
         // NOTE - Opponent
 
         for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
@@ -413,6 +401,18 @@ impl Game for Boop {
 
         if self.opponent_cats.count_ones() as u8 == Self::POOL_SIZE {
             return Outcome::Loss;
+        }
+
+        // NOTE - Player
+
+        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+            if (self.player_cats & mask) == mask {
+                return Outcome::Win;
+            }
+        }
+
+        if self.player_cats.count_ones() as u8 == Self::POOL_SIZE {
+            return Outcome::Win;
         }
 
         Outcome::InProgress

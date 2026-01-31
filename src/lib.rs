@@ -1,9 +1,7 @@
-#![allow(unused)]
-
 mod core;
 mod game;
-mod strategy;
+mod player;
 
 pub use core::{Game, Outcome, Player, Turn};
 pub use game::{Boop, TicTacToe};
-pub use strategy::{ClassicMctsPlayer, MinimaxPlayer, RandomPlayer};
+pub use player::{ClassicMctsPlayer, MinimaxPlayer, RandomPlayer};

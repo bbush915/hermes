@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 use std::vec;
 
 use crate::core::{Game, Turn};
-use crate::strategy::mcts::evaluator::{Evaluator, PolicyEntry};
-use crate::strategy::mcts::expander::Expander;
-use crate::strategy::mcts::scorer::Scorer;
+use crate::player::mcts::evaluator::{Evaluator, PolicyEntry};
+use crate::player::mcts::expander::Expander;
+use crate::player::mcts::scorer::Scorer;
 
 pub struct Mcts<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> {
     simulations: u32,

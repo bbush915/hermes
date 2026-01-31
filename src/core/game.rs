@@ -1,6 +1,6 @@
-use std::fmt::Display;
+use std::fmt;
 
-pub trait Game: Clone + Display {
+pub trait Game: Clone + fmt::Display {
     type Action: Copy + Eq;
     type Checkpoint: Copy;
 

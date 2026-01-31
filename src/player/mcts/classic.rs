@@ -1,8 +1,8 @@
 use crate::core::{Game, Player};
-use crate::strategy::mcts::evaluator::RolloutEvaluator;
-use crate::strategy::mcts::expander::RandomExpander;
-use crate::strategy::mcts::mcts::Mcts;
-use crate::strategy::mcts::scorer::Ucb1Scorer;
+use crate::player::mcts::evaluator::RolloutEvaluator;
+use crate::player::mcts::expander::RandomExpander;
+use crate::player::mcts::mcts::Mcts;
+use crate::player::mcts::scorer::Ucb1Scorer;
 
 pub struct ClassicMctsPlayer<G: Game> {
     mcts: Mcts<G, RolloutEvaluator, Ucb1Scorer, RandomExpander>,

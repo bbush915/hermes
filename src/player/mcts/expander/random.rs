@@ -1,9 +1,9 @@
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::core::Game;
-use crate::strategy::mcts::evaluator::{Evaluation, PolicyEntry};
-use crate::strategy::mcts::expander::Expander;
-use crate::strategy::mcts::mcts::Node;
+use crate::player::mcts::evaluator::{Evaluation, PolicyEntry};
+use crate::player::mcts::expander::Expander;
+use crate::player::mcts::mcts::Node;
 
 #[derive(Debug)]
 pub struct RandomExpander {

@@ -1,8 +1,8 @@
 use std::f32;
 
 use crate::core::Game;
-use crate::strategy::mcts::mcts::Node;
-use crate::strategy::mcts::scorer::scorer::Scorer;
+use crate::player::mcts::mcts::Node;
+use crate::player::mcts::scorer::scorer::Scorer;
 
 pub struct Ucb1Scorer {
     c: f32,

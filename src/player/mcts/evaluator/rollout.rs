@@ -1,7 +1,7 @@
 use rand::{SeedableRng, rngs::StdRng, seq::IndexedRandom};
 
 use crate::core::{Game, Outcome};
-use crate::strategy::mcts::evaluator::{Evaluation, Evaluator, PolicyEntry};
+use crate::player::mcts::evaluator::{Evaluation, Evaluator, PolicyEntry};
 
 #[derive(Debug)]
 pub struct RolloutEvaluator {
