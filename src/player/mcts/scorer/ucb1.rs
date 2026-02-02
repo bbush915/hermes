@@ -4,6 +4,7 @@ use crate::core::Game;
 use crate::player::mcts::mcts::Node;
 use crate::player::mcts::scorer::scorer::Scorer;
 
+#[derive(Clone)]
 pub struct Ucb1Scorer {
     c: f32,
 }

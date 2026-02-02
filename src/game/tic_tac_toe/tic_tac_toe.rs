@@ -7,8 +7,8 @@ use crate::game::tic_tac_toe::action::Action;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TicTacToe {
-    player_marks: u16,
-    opponent_marks: u16,
+    pub player_marks: u16,
+    pub opponent_marks: u16,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,24 +18,13 @@ pub struct Checkpoint {
 }
 
 impl TicTacToe {
-    const BOARD_SIZE: usize = 3;
+    pub const BOARD_SIZE: usize = 3;
 
     const BOARD_MASK: u16 = (1u16 << 9) - 1;
     const THREE_IN_A_ROW_MASKS: [u16; 8] = Self::make_three_in_a_row_masks();
 
-    pub fn new() -> Self {
-        TicTacToe {
-            player_marks: 0,
-            opponent_marks: 0,
-        }
-    }
-
     fn end_turn(&mut self) {
         self.flip_perspective();
-    }
-
-    fn flip_perspective(&mut self) {
-        swap(&mut self.player_marks, &mut self.opponent_marks);
     }
 
     fn into_indices(mut bits: u16) -> impl Iterator<Item = u8> {
@@ -125,30 +114,11 @@ impl Game for TicTacToe {
     type Action = Action;
     type Checkpoint = Checkpoint;
 
-    fn outcome(&self) -> Outcome {
-        // NOTE - Player
-
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
-            if (self.player_marks & mask) == mask {
-                return Outcome::Win;
-            }
+    fn new() -> Self {
+        TicTacToe {
+            player_marks: 0,
+            opponent_marks: 0,
         }
-
-        // NOTE - Opponent
-
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
-            if (self.opponent_marks & mask) == mask {
-                return Outcome::Loss;
-            }
-        }
-
-        // NOTE - Draw
-
-        if (self.player_marks | self.opponent_marks) & Self::BOARD_MASK == Self::BOARD_MASK {
-            return Outcome::Draw;
-        }
-
-        Outcome::InProgress
     }
 
     fn get_possible_actions(&self) -> Vec<Action> {
@@ -182,6 +152,32 @@ impl Game for TicTacToe {
         true
     }
 
+    fn outcome(&self) -> Outcome {
+        // NOTE - Opponent
+
+        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+            if (self.opponent_marks & mask) == mask {
+                return Outcome::Loss;
+            }
+        }
+
+        // NOTE - Player
+
+        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+            if (self.player_marks & mask) == mask {
+                return Outcome::Win;
+            }
+        }
+
+        // NOTE - Draw
+
+        if (self.player_marks | self.opponent_marks) & Self::BOARD_MASK == Self::BOARD_MASK {
+            return Outcome::Draw;
+        }
+
+        Outcome::InProgress
+    }
+
     fn create_checkpoint(&self) -> Checkpoint {
         Checkpoint {
             player_marks: self.player_marks,
@@ -192,6 +188,10 @@ impl Game for TicTacToe {
     fn restore_checkpoint(&mut self, checkpoint: Checkpoint) {
         self.player_marks = checkpoint.player_marks;
         self.opponent_marks = checkpoint.opponent_marks;
+    }
+
+    fn flip_perspective(&mut self) {
+        swap(&mut self.player_marks, &mut self.opponent_marks);
     }
 }
 

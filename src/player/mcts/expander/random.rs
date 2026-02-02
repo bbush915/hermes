@@ -1,11 +1,10 @@
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use crate::core::Game;
-use crate::player::mcts::evaluator::{Evaluation, PolicyEntry};
+use crate::core::{Evaluation, Game, PolicyItem};
 use crate::player::mcts::expander::Expander;
 use crate::player::mcts::mcts::Node;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RandomExpander {
     rng: StdRng,
 }
@@ -25,7 +24,7 @@ impl RandomExpander {
 }
 
 impl<G: Game> Expander<G> for RandomExpander {
-    fn expand(&mut self, node: &mut Node<G>, _evaluation: &Evaluation<G>) -> Vec<PolicyEntry<G>> {
+    fn expand(&mut self, node: &mut Node<G>, _evaluation: &Evaluation<G>) -> Vec<PolicyItem<G>> {
         if node.unexplored_actions.is_empty() {
             return vec![];
         }
@@ -35,6 +34,6 @@ impl<G: Game> Expander<G> for RandomExpander {
 
         node.unexplored_actions.swap_remove(action_index);
 
-        vec![PolicyEntry { action, prior: 1.0 }]
+        vec![PolicyItem { action, prior: 1.0 }]
     }
 }

@@ -1,11 +1,12 @@
 use std::marker::PhantomData;
 use std::vec;
 
-use crate::core::{Game, Turn};
-use crate::player::mcts::evaluator::{Evaluator, PolicyEntry};
+use crate::core::{Evaluation, Game, PolicyItem, Turn};
+use crate::player::mcts::evaluator::Evaluator;
 use crate::player::mcts::expander::Expander;
 use crate::player::mcts::scorer::Scorer;
 
+#[derive(Clone)]
 pub struct Mcts<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> {
     simulations: u32,
 
@@ -29,7 +30,7 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         }
     }
 
-    pub fn search(&mut self, game: &G) -> G::Action {
+    pub fn search(&mut self, game: &G) -> SearchResult<G> {
         let mut tree = Tree::new(game.clone());
 
         for _ in 0..self.simulations {
@@ -37,18 +38,21 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
 
             let node_index = self.select(&mut tree);
             let value = self.expand_and_evaluate(&mut tree, node_index);
-            self.backpropagate(&mut tree, node_index, value);
+            Self::backpropagate(&mut tree, node_index, value);
 
             tree.game.restore_checkpoint(checkpoint);
         }
 
-        tree.nodes[tree.root_index]
-            .child_indices
+        let evaluation = Self::make_evaluation(&tree);
+
+        let action = evaluation
+            .policy
             .iter()
-            .copied()
-            .max_by_key(|&child_index| tree.nodes[child_index].visits)
-            .and_then(|child_index| tree.nodes[child_index].action)
-            .expect("no legal actions available")
+            .max_by(|x, y| x.prior.partial_cmp(&y.prior).unwrap())
+            .unwrap()
+            .action;
+
+        SearchResult { evaluation, action }
     }
 
     fn select(&self, tree: &mut Tree<G>) -> usize {
@@ -98,7 +102,7 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
             .expander
             .expand(&mut tree.nodes[node_index], &evaluation);
 
-        for PolicyEntry { action, prior } in expansion {
+        for PolicyItem { action, prior } in expansion {
             let checkpoint = tree.game.create_checkpoint();
 
             let turn_ended = tree.game.apply_action(action);
@@ -128,7 +132,7 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         value
     }
 
-    fn backpropagate(&self, tree: &mut Tree<G>, mut node_index: usize, value: f32) {
+    fn backpropagate(tree: &mut Tree<G>, mut node_index: usize, value: f32) {
         loop {
             let node = &mut tree.nodes[node_index];
 
@@ -141,6 +145,33 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
                 break;
             }
         }
+    }
+
+    fn make_evaluation(tree: &Tree<G>) -> Evaluation<G> {
+        let root = &tree.nodes[tree.root_index];
+
+        let total_visits: u32 = root
+            .child_indices
+            .iter()
+            .map(|&i| tree.nodes[i].visits)
+            .sum();
+
+        let policy = root
+            .child_indices
+            .iter()
+            .filter_map(|&i| {
+                let node = &tree.nodes[i];
+
+                let action = node.action?;
+                let prior = node.visits as f32 / total_visits.max(1) as f32;
+
+                Some(PolicyItem { action, prior })
+            })
+            .collect();
+
+        let value = root.total_value / root.visits.max(1) as f32;
+
+        Evaluation { policy, value }
     }
 }
 
@@ -188,4 +219,9 @@ pub struct Node<G: Game> {
     pub prior: f32,
 
     pub unexplored_actions: Vec<G::Action>,
+}
+
+pub struct SearchResult<G: Game> {
+    pub evaluation: Evaluation<G>,
+    pub action: G::Action,
 }

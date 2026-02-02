@@ -1,7 +1,8 @@
 use rand::{SeedableRng, rngs::StdRng, seq::IndexedRandom};
 
-use crate::core::{Game, Player};
+use crate::core::{Choice, Game, Player};
 
+#[derive(Clone)]
 pub struct RandomPlayer {
     rng: StdRng,
 }
@@ -25,11 +26,14 @@ impl<G: Game> Player<G> for RandomPlayer {
         "Random"
     }
 
-    fn choose_action(&mut self, game: &G) -> G::Action {
+    fn choose_action(&mut self, game: &G) -> Choice<G> {
         let actions = game.get_possible_actions();
 
         match actions.choose(&mut self.rng) {
-            Some(action) => *action,
+            Some(action) => Choice {
+                evaluation: None,
+                action: *action,
+            },
             None => panic!("no legal actions available"),
         }
     }

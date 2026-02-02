@@ -7,15 +7,15 @@ use crate::game::boop::action::{Action, Piece};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Boop {
-    phase: Phase,
+    pub phase: Phase,
 
-    player_cats: u64,
-    player_kittens: u64,
-    player_graduations: u8,
+    pub player_cats: u64,
+    pub player_kittens: u64,
+    pub player_graduations: u8,
 
-    opponent_cats: u64,
-    opponent_kittens: u64,
-    opponent_graduations: u8,
+    pub opponent_cats: u64,
+    pub opponent_kittens: u64,
+    pub opponent_graduations: u8,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,30 +38,42 @@ pub struct Checkpoint {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Pool {
-    kittens_available: u8,
-    cats_available: u8,
+pub struct Pool {
+    pub kittens_available: u8,
+    pub cats_available: u8,
 }
 
 impl Boop {
-    const BOARD_SIZE: usize = 6;
-    const POOL_SIZE: u8 = 8;
+    pub const BOARD_SIZE: usize = 6;
+    pub const POOL_SIZE: u8 = 8;
 
     const BOARD_MASK: u64 = (1u64 << 36) - 1;
     const NEIGHBOR_MASKS: [u64; Self::BOARD_SIZE * Self::BOARD_SIZE] = Self::make_neighbor_masks();
-    const THREE_IN_A_ROW_MASKS: [u64; 80] = Self::make_three_in_a_row_masks();
+    pub const THREE_IN_A_ROW_MASKS: [u64; 80] = Self::make_three_in_a_row_masks();
 
-    pub fn new() -> Self {
-        Boop {
-            phase: Phase::Place,
+    pub fn player_pool(&self) -> Pool {
+        let kittens_played = self.player_kittens.count_ones() as u8;
+        let kittens_available = Self::POOL_SIZE - self.player_graduations - kittens_played;
 
-            player_cats: 0,
-            player_kittens: 0,
-            player_graduations: 0,
+        let cats_played = self.player_cats.count_ones() as u8;
+        let cats_available = self.player_graduations - cats_played;
 
-            opponent_cats: 0,
-            opponent_kittens: 0,
-            opponent_graduations: 0,
+        Pool {
+            kittens_available,
+            cats_available,
+        }
+    }
+
+    pub fn opponent_pool(&self) -> Pool {
+        let kittens_played = self.opponent_kittens.count_ones() as u8;
+        let kittens_available = Self::POOL_SIZE - self.opponent_graduations - kittens_played;
+
+        let cats_played = self.opponent_cats.count_ones() as u8;
+        let cats_available = self.opponent_graduations - cats_played;
+
+        Pool {
+            kittens_available,
+            cats_available,
         }
     }
 
@@ -126,32 +138,6 @@ impl Boop {
         }
 
         actions
-    }
-
-    fn player_pool(&self) -> Pool {
-        let kittens_played = self.player_kittens.count_ones() as u8;
-        let kittens_available = Self::POOL_SIZE - self.player_graduations - kittens_played;
-
-        let cats_played = self.player_cats.count_ones() as u8;
-        let cats_available = self.player_graduations - cats_played;
-
-        Pool {
-            kittens_available,
-            cats_available,
-        }
-    }
-
-    fn opponent_pool(&self) -> Pool {
-        let kittens_played = self.opponent_kittens.count_ones() as u8;
-        let kittens_available = Self::POOL_SIZE - self.opponent_graduations - kittens_played;
-
-        let cats_played = self.opponent_cats.count_ones() as u8;
-        let cats_available = self.opponent_graduations - cats_played;
-
-        Pool {
-            kittens_available,
-            cats_available,
-        }
     }
 
     fn apply_place_action(&mut self, piece: Piece, index: u8) {
@@ -234,12 +220,6 @@ impl Boop {
         self.phase = Phase::Place;
 
         self.flip_perspective();
-    }
-
-    fn flip_perspective(&mut self) {
-        swap(&mut self.player_kittens, &mut self.opponent_kittens);
-        swap(&mut self.player_cats, &mut self.opponent_cats);
-        swap(&mut self.player_graduations, &mut self.opponent_graduations);
     }
 
     fn into_indices(mut bits: u64) -> impl Iterator<Item = u8> {
@@ -390,6 +370,20 @@ impl Game for Boop {
     type Action = Action;
     type Checkpoint = Checkpoint;
 
+    fn new() -> Self {
+        Boop {
+            phase: Phase::Place,
+
+            player_cats: 0,
+            player_kittens: 0,
+            player_graduations: 0,
+
+            opponent_cats: 0,
+            opponent_kittens: 0,
+            opponent_graduations: 0,
+        }
+    }
+
     fn outcome(&self) -> Outcome {
         // NOTE - Opponent
 
@@ -480,6 +474,12 @@ impl Game for Boop {
         self.opponent_kittens = checkpoint.opponent_kittens;
         self.opponent_cats = checkpoint.opponent_cats;
         self.opponent_graduations = checkpoint.opponent_graduations;
+    }
+
+    fn flip_perspective(&mut self) {
+        swap(&mut self.player_kittens, &mut self.opponent_kittens);
+        swap(&mut self.player_cats, &mut self.opponent_cats);
+        swap(&mut self.player_graduations, &mut self.opponent_graduations);
     }
 }
 

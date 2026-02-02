@@ -1,9 +1,20 @@
+use std::f32;
+
 use crate::core::Game;
 use crate::player::mcts::mcts::Node;
 use crate::player::mcts::scorer::scorer::Scorer;
 
+#[derive(Clone)]
 pub struct PuctScorer {
     pub c_puct: f32,
+}
+
+impl PuctScorer {
+    pub fn new() -> Self {
+        Self {
+            c_puct: f32::consts::SQRT_2,
+        }
+    }
 }
 
 impl<G: Game> Scorer<G> for PuctScorer {

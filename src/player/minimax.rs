@@ -1,5 +1,6 @@
-use crate::core::{Game, Outcome, Player};
+use crate::core::{Choice, Game, Outcome, Player};
 
+#[derive(Clone)]
 pub struct MinimaxPlayer {
     depth: usize,
 }
@@ -113,7 +114,7 @@ impl<G: Game> Player<G> for MinimaxPlayer {
         "Minimax with Alpha-Beta Pruning"
     }
 
-    fn choose_action(&mut self, game: &G) -> G::Action {
+    fn choose_action(&mut self, game: &G) -> Choice<G> {
         let (_, action) = self.minimax(
             &mut game.clone(),
             self.depth,
@@ -122,6 +123,11 @@ impl<G: Game> Player<G> for MinimaxPlayer {
             f32::INFINITY,
         );
 
-        action.expect("no legal actions available")
+        let action = action.expect("no legal actions available");
+
+        Choice {
+            evaluation: None,
+            action,
+        }
     }
 }
