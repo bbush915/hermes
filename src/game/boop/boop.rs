@@ -216,10 +216,10 @@ impl Boop {
         self.player_graduations += kittens_removed;
     }
 
-    fn end_turn(&mut self) {
-        self.phase = Phase::Place;
-
-        self.flip_perspective();
+    fn flip_perspective(&mut self) {
+        swap(&mut self.player_kittens, &mut self.opponent_kittens);
+        swap(&mut self.player_cats, &mut self.opponent_cats);
+        swap(&mut self.player_graduations, &mut self.opponent_graduations);
     }
 
     fn into_indices(mut bits: u64) -> impl Iterator<Item = u8> {
@@ -424,7 +424,7 @@ impl Game for Boop {
     }
 
     fn apply_action(&mut self, action: Action) -> bool {
-        let mut end_turn = true;
+        let mut turn_complete = true;
 
         match action {
             Action::Place { piece, index } => {
@@ -435,7 +435,7 @@ impl Game for Boop {
                 if !graduate_actions.is_empty() {
                     self.phase = Phase::Graduate;
 
-                    end_turn = false;
+                    turn_complete = false;
                 }
             }
             Action::Graduate { mask } => {
@@ -443,11 +443,13 @@ impl Game for Boop {
             }
         };
 
-        if end_turn {
-            self.end_turn();
-        }
+        turn_complete
+    }
 
-        end_turn
+    fn end_turn(&mut self) {
+        self.phase = Phase::Place;
+
+        self.flip_perspective();
     }
 
     fn create_checkpoint(&self) -> Checkpoint {
@@ -476,10 +478,14 @@ impl Game for Boop {
         self.opponent_graduations = checkpoint.opponent_graduations;
     }
 
-    fn flip_perspective(&mut self) {
-        swap(&mut self.player_kittens, &mut self.opponent_kittens);
-        swap(&mut self.player_cats, &mut self.opponent_cats);
-        swap(&mut self.player_graduations, &mut self.opponent_graduations);
+    fn display(&self, turn: crate::Turn) -> String {
+        let mut game = self.clone();
+
+        if turn == crate::Turn::Opponent {
+            game.flip_perspective();
+        }
+
+        format!("{}", game)
     }
 }
 
@@ -519,7 +525,6 @@ impl fmt::Display for Boop {
 
         // NOTE - Board
 
-        writeln!(formatter)?;
         writeln!(formatter, "╔═══╤═══╤═══╤═══╤═══╤═══╗")?;
 
         for x in 0..Self::BOARD_SIZE {
@@ -723,19 +728,11 @@ mod tests {
 
     trait BoopTestExtensions {
         fn with_phase(self, phase: Phase) -> Self;
-
-        fn with_flipped_perspective(self) -> Self;
     }
 
     impl BoopTestExtensions for Boop {
         fn with_phase(mut self, phase: Phase) -> Self {
             self.phase = phase;
-
-            self
-        }
-
-        fn with_flipped_perspective(mut self) -> Self {
-            self.flip_perspective();
 
             self
         }
@@ -810,8 +807,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -863,8 +859,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -916,8 +911,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -969,8 +963,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1022,8 +1015,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1075,8 +1067,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1128,8 +1119,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1181,8 +1171,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1234,8 +1223,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1287,8 +1275,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1340,8 +1327,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1393,8 +1379,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1446,8 +1431,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1499,8 +1483,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1552,8 +1535,7 @@ mod tests {
                         ║   │   │   │   │   │   ║
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
-                )
-                .with_flipped_perspective();
+                );
 
                 assert_eq!(game, expected_game);
             }
@@ -1663,7 +1645,7 @@ mod tests {
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
                 )
-                .with_flipped_perspective();
+                .with_phase(Phase::Graduate);
 
                 assert_eq!(game, expected_game);
             }
@@ -1716,7 +1698,7 @@ mod tests {
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
                 )
-                .with_flipped_perspective();
+                .with_phase(Phase::Graduate);
 
                 assert_eq!(game, expected_game);
             }
@@ -1769,7 +1751,7 @@ mod tests {
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
                 )
-                .with_flipped_perspective();
+                .with_phase(Phase::Graduate);
 
                 assert_eq!(game, expected_game);
             }
@@ -1822,7 +1804,7 @@ mod tests {
                         ╚═══╧═══╧═══╧═══╧═══╧═══╝
                     ",
                 )
-                .with_flipped_perspective();
+                .with_phase(Phase::Graduate);
 
                 assert_eq!(game, expected_game);
             }

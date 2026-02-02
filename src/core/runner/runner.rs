@@ -15,6 +15,7 @@ where
 
     player: P,
     opponent: O,
+
     sink: S,
 
     _marker: std::marker::PhantomData<G>,
@@ -33,6 +34,7 @@ where
 
             player,
             opponent,
+
             sink,
 
             _marker: std::marker::PhantomData,
@@ -40,11 +42,19 @@ where
     }
 
     pub fn run(&mut self) {
-        for game_id in 0..self.games {
+        for game_number in 0..self.games {
             let mut game = G::new();
+
+            let mut turn_number = 0;
             let mut turn = Turn::Player;
 
-            self.sink.emit(RunnerEvent::GameStarted { game_id });
+            self.sink.emit(RunnerEvent::GameStarted { game_number });
+
+            self.sink.emit(RunnerEvent::TurnStarted {
+                game_number,
+                turn_number,
+                turn,
+            });
 
             loop {
                 let choice = match turn {
@@ -54,20 +64,21 @@ where
 
                 if let Some(evaluation) = choice.evaluation {
                     self.sink.emit(RunnerEvent::PositionEvaluated {
+                        game_number,
+                        turn_number,
+                        turn,
                         state: game.clone(),
                         evaluation,
                     });
                 }
 
-                let turn_ended = game.apply_action(choice.action);
-
-                if turn_ended {
-                    turn = turn.flip();
-                }
+                let turn_complete = game.apply_action(choice.action);
 
                 self.sink.emit(RunnerEvent::ActionApplied {
-                    state: game.clone(),
+                    game_number,
+                    turn_number,
                     turn,
+                    state: game.clone(),
                     action: choice.action,
                 });
 
@@ -75,12 +86,33 @@ where
                     Outcome::InProgress => {}
                     outcome => {
                         self.sink.emit(RunnerEvent::GameFinished {
-                            game_id,
+                            game_number,
+                            turn_number,
                             turn,
                             outcome,
                         });
                         break;
                     }
+                }
+
+                if turn_complete {
+                    self.sink.emit(RunnerEvent::TurnFinished {
+                        game_number,
+                        turn_number,
+                        turn,
+                    });
+
+                    turn_number += 1;
+
+                    game.end_turn();
+
+                    turn = turn.flip();
+
+                    self.sink.emit(RunnerEvent::TurnStarted {
+                        game_number,
+                        turn_number,
+                        turn,
+                    });
                 }
             }
         }
@@ -89,19 +121,35 @@ where
 
 pub enum RunnerEvent<G: Game> {
     GameStarted {
-        game_id: u64,
+        game_number: u64,
+    },
+    TurnStarted {
+        game_number: u64,
+        turn_number: u64,
+        turn: Turn,
     },
     PositionEvaluated {
+        game_number: u64,
+        turn_number: u64,
+        turn: Turn,
         state: G,
         evaluation: Evaluation<G>,
     },
     ActionApplied {
-        state: G,
+        game_number: u64,
+        turn_number: u64,
         turn: Turn,
+        state: G,
         action: G::Action,
     },
+    TurnFinished {
+        game_number: u64,
+        turn_number: u64,
+        turn: Turn,
+    },
     GameFinished {
-        game_id: u64,
+        game_number: u64,
+        turn_number: u64,
         turn: Turn,
         outcome: Outcome,
     },

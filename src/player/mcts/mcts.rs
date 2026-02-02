@@ -105,11 +105,15 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         for PolicyItem { action, prior } in expansion {
             let checkpoint = tree.game.create_checkpoint();
 
-            let turn_ended = tree.game.apply_action(action);
+            let turn_complete = tree.game.apply_action(action);
+
+            if turn_complete {
+                tree.game.end_turn();
+            }
 
             let child_node = Node {
                 action: Some(action),
-                turn: if turn_ended { turn.flip() } else { turn },
+                turn: if turn_complete { turn.flip() } else { turn },
 
                 parent_index: Some(node_index),
                 child_indices: vec![],

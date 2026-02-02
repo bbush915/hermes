@@ -39,7 +39,9 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
             RunnerEvent::GameStarted { .. } => {
                 self.pending_samples.clear();
             }
-            RunnerEvent::PositionEvaluated { state, evaluation } => {
+            RunnerEvent::PositionEvaluated {
+                state, evaluation, ..
+            } => {
                 let state = self.state_encoder.encode(&state);
 
                 let mut policy = vec![0.0; self.action_encoder.size()];

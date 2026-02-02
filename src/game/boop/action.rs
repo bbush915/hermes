@@ -10,13 +10,13 @@ impl fmt::Display for Action {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Place { piece, index } => {
-                let col = (*index % 6) as u8 + b'A';
                 let row = (*index / 6) + 1;
+                let col = (*index % 6) + 1;
 
-                writeln!(f, "places {:?} at {}{}", piece, col as char, row)
+                write!(f, "places a {:?} at ({}, {}).", piece, row, col)
             }
             Action::Graduate { mask } => {
-                write!(f, "graduates ")?;
+                write!(f, "graduates the piece(s) at ")?;
 
                 let mut first = true;
 
@@ -26,15 +26,18 @@ impl fmt::Display for Action {
                             write!(f, ", ")?;
                         }
 
-                        let col = (i % 6) as u8 + b'A';
                         let row = (i / 6) + 1;
+                        let col = (i % 6) + 1;
 
-                        write!(f, "{}{}", col as char, row)?;
+                        write!(f, "({}, {})", row, col)?;
 
                         first = false;
                     }
                 }
-                writeln!(f)
+
+                write!(f, ".")?;
+
+                Ok(())
             }
         }
     }

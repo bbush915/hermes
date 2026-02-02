@@ -36,7 +36,7 @@ impl MinimaxPlayer {
         &self,
         game: &mut G,
         depth: usize,
-        objective: Objective,
+        mut objective: Objective,
         alpha: f32,
         beta: f32,
     ) -> (f32, Option<G::Action>) {
@@ -65,12 +65,16 @@ impl MinimaxPlayer {
         let checkpoint = game.create_checkpoint();
 
         for action in game.get_possible_actions() {
-            let turn_ended = game.apply_action(action);
+            let turn_complete = game.apply_action(action);
+
+            if turn_complete {
+                game.end_turn();
+            }
 
             let (value, _) = self.minimax(
                 game,
                 depth - 1,
-                if turn_ended {
+                if turn_complete {
                     objective.flip()
                 } else {
                     objective

@@ -1,4 +1,4 @@
-use hermes::{Boop, RandomPlayer, Runner, StdoutSink};
+use hermes::{Boop, RandomPlayer, Runner, StdoutSink, TicTacToe};
 
 fn main() {
     let player = RandomPlayer::new();

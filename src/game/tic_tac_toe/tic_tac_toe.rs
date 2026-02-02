@@ -23,8 +23,8 @@ impl TicTacToe {
     const BOARD_MASK: u16 = (1u16 << 9) - 1;
     const THREE_IN_A_ROW_MASKS: [u16; 8] = Self::make_three_in_a_row_masks();
 
-    fn end_turn(&mut self) {
-        self.flip_perspective();
+    fn flip_perspective(&mut self) {
+        swap(&mut self.player_marks, &mut self.opponent_marks);
     }
 
     fn into_indices(mut bits: u16) -> impl Iterator<Item = u8> {
@@ -147,9 +147,11 @@ impl Game for TicTacToe {
             }
         };
 
-        self.end_turn();
-
         true
+    }
+
+    fn end_turn(&mut self) {
+        self.flip_perspective();
     }
 
     fn outcome(&self) -> Outcome {
@@ -190,8 +192,14 @@ impl Game for TicTacToe {
         self.opponent_marks = checkpoint.opponent_marks;
     }
 
-    fn flip_perspective(&mut self) {
-        swap(&mut self.player_marks, &mut self.opponent_marks);
+    fn display(&self, turn: crate::Turn) -> String {
+        let mut game = self.clone();
+
+        if turn == crate::Turn::Opponent {
+            game.flip_perspective();
+        }
+
+        format!("{}", game)
     }
 }
 
@@ -199,7 +207,6 @@ impl fmt::Display for TicTacToe {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         // NOTE - Board
 
-        writeln!(formatter)?;
         writeln!(formatter, "╔═══╤═══╤═══╗")?;
 
         for x in 0..Self::BOARD_SIZE {
@@ -300,18 +307,6 @@ mod tests {
             .unwrap()
     }
 
-    trait TicTacToeTestExtensions {
-        fn with_flipped_perspective(self) -> Self;
-    }
-
-    impl TicTacToeTestExtensions for TicTacToe {
-        fn with_flipped_perspective(mut self) -> Self {
-            self.flip_perspective();
-
-            self
-        }
-    }
-
     fn xy_to_index(x: usize, y: usize) -> u8 {
         (x * TicTacToe::BOARD_SIZE + y) as u8
     }
@@ -349,8 +344,7 @@ mod tests {
                         ║   │   │   ║
                         ╚═══╧═══╧═══╝
                     ",
-            )
-            .with_flipped_perspective();
+            );
 
             assert_eq!(game, expected_game);
         }
