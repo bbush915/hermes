@@ -37,8 +37,8 @@ impl BoopStateEncoder {
 }
 
 impl StateEncoder<Boop> for BoopStateEncoder {
-    fn size(&self) -> (usize, usize, usize) {
-        (Boop::BOARD_SIZE, Boop::BOARD_SIZE, Self::PLANE_COUNT)
+    fn shape(&self) -> Vec<usize> {
+        vec![1, Self::PLANE_COUNT, Boop::BOARD_SIZE, Boop::BOARD_SIZE]
     }
 
     fn encode(&self, state: &Boop) -> Vec<f32> {

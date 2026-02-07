@@ -46,7 +46,12 @@ where
             let mut game = G::new();
 
             let mut turn_number = 0;
-            let mut turn = Turn::Player;
+
+            let mut turn = if game_number % 2 == 0 {
+                Turn::Player
+            } else {
+                Turn::Opponent
+            };
 
             self.sink.emit(RunnerEvent::GameStarted { game_number });
 
@@ -82,6 +87,17 @@ where
                     action: choice.action,
                 });
 
+                if turn_number > 150 {
+                    self.sink.emit(RunnerEvent::GameFinished {
+                        game_number,
+                        turn_number,
+                        turn,
+                        outcome: Outcome::Draw,
+                    });
+
+                    break;
+                }
+
                 match game.outcome() {
                     Outcome::InProgress => {}
                     outcome => {
@@ -91,6 +107,7 @@ where
                             turn,
                             outcome,
                         });
+
                         break;
                     }
                 }
@@ -116,6 +133,10 @@ where
                 }
             }
         }
+    }
+
+    pub fn into_sink(self) -> S {
+        self.sink
     }
 }
 

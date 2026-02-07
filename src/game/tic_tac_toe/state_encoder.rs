@@ -37,12 +37,13 @@ impl TicTacToeStateEncoder {
 }
 
 impl StateEncoder<TicTacToe> for TicTacToeStateEncoder {
-    fn size(&self) -> (usize, usize, usize) {
-        (
-            TicTacToe::BOARD_SIZE,
-            TicTacToe::BOARD_SIZE,
+    fn shape(&self) -> Vec<usize> {
+        vec![
+            1,
             Self::PLANE_COUNT,
-        )
+            TicTacToe::BOARD_SIZE,
+            TicTacToe::BOARD_SIZE,
+        ]
     }
 
     fn encode(&self, state: &TicTacToe) -> Vec<f32> {

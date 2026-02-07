@@ -27,13 +27,15 @@ impl RandomNeuralNetwork {
 
 impl NeuralNetwork for RandomNeuralNetwork {
     fn forward(&mut self, _input: &[f32]) -> (Vec<f32>, f32) {
+        let rng = &mut self.rng;
+
         let mut logits = vec![0.0; self.policy_size];
 
         for logit in &mut logits {
-            *logit = self.rng.random::<f32>();
+            *logit = rng.random::<f32>();
         }
 
-        let value = self.rng.random::<f32>() * 2.0 - 1.0;
+        let value = rng.random::<f32>() * 2.0 - 1.0;
 
         (logits, value)
     }

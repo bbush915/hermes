@@ -1,4 +1,4 @@
-use crate::core::{EventSink, Game, Outcome, PolicyItem, RunnerEvent};
+use crate::core::{EventSink, Game, Outcome, PolicyItem, RunnerEvent, Turn};
 use crate::neural_network::ActionEncoder;
 use crate::neural_network::StateEncoder;
 use crate::self_play::Sample;
@@ -53,12 +53,14 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
 
                 self.pending_samples.push(PendingSample { state, policy });
             }
-            RunnerEvent::GameFinished { outcome, .. } => {
-                let value = match outcome {
-                    Outcome::Win => 1.0,
-                    Outcome::Loss => -1.0,
-                    Outcome::Draw => 0.0,
-                    Outcome::InProgress => unreachable!(),
+            RunnerEvent::GameFinished { outcome, turn, .. } => {
+                let value = match (outcome, turn) {
+                    (Outcome::Win, Turn::Player) => 1.0,
+                    (Outcome::Win, Turn::Opponent) => -1.0,
+                    (Outcome::Loss, Turn::Player) => -1.0,
+                    (Outcome::Loss, Turn::Opponent) => 1.0,
+                    (Outcome::Draw, _) => 0.0,
+                    (Outcome::InProgress, _) => unreachable!(),
                 };
 
                 for PendingSample { state, policy } in self.pending_samples.drain(..) {
