@@ -25,6 +25,9 @@ struct Args {
     #[arg(short, long, default_value_t = 150)]
     max_turns: u32,
 
+    #[arg(short, long, default_value_t = false)]
+    use_symmetries: bool,
+
     #[arg(short, long, default_value = None)]
     output: Option<PathBuf>,
 }
@@ -60,7 +63,13 @@ fn main() {
         let file = File::create(path).expect("failed to create output file");
 
         let json_sink = JsonSampleSink::new(file);
-        let sample_sink = SampleRunnerEventSink::new(state_encoder, action_encoder, json_sink);
+
+        let sample_sink = SampleRunnerEventSink::new(
+            state_encoder,
+            action_encoder,
+            args.use_symmetries,
+            json_sink,
+        );
 
         let mut runner =
             Runner::new(args.games, player_1, player_2, sample_sink).with_max_turns(args.max_turns);

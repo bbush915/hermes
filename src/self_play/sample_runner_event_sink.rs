@@ -15,6 +15,7 @@ pub struct SampleRunnerEventSink<
     state_encoder: SE,
     action_encoder: AE,
 
+    use_symmetries: bool,
     pending_samples: Vec<PendingSample>,
 
     sink: S,
@@ -25,11 +26,12 @@ pub struct SampleRunnerEventSink<
 impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
     SampleRunnerEventSink<G, SE, AE, S>
 {
-    pub fn new(state_encoder: SE, action_encoder: AE, sink: S) -> Self {
+    pub fn new(state_encoder: SE, action_encoder: AE, use_symmetries: bool, sink: S) -> Self {
         SampleRunnerEventSink {
             state_encoder,
             action_encoder,
 
+            use_symmetries,
             pending_samples: vec![],
 
             sink,
@@ -54,17 +56,27 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
                 self.pending_samples.clear();
             }
             RunnerEventKind::PositionEvaluated { evaluation } => {
-                let state = self.state_encoder.encode(&game);
+                let symmetries = if self.use_symmetries {
+                    game.symmetries()
+                } else {
+                    1
+                };
 
-                let mut policy = vec![0.0; self.action_encoder.size()];
+                for symmetry in 0..symmetries {
+                    let state = self.state_encoder.encode(&game.transform(symmetry));
 
-                for PolicyItem { action, prior } in evaluation.policy {
-                    let action_index = self.action_encoder.encode(&action);
+                    let mut policy = vec![0.0; self.action_encoder.size()];
 
-                    policy[action_index] = prior;
+                    for PolicyItem { action, prior } in &evaluation.policy {
+                        let action_index = self
+                            .action_encoder
+                            .encode(&game.transform_action(*action, symmetry));
+
+                        policy[action_index] = *prior;
+                    }
+
+                    self.pending_samples.push(PendingSample { state, policy });
                 }
-
-                self.pending_samples.push(PendingSample { state, policy });
             }
             RunnerEventKind::GameFinished { outcome } => {
                 let value = match (outcome, turn) {

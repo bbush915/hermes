@@ -20,6 +20,12 @@ pub trait Game: Clone + fmt::Display {
 
     fn restore_checkpoint(&mut self, checkpoint: Self::Checkpoint);
 
+    fn symmetries(&self) -> u8;
+
+    fn transform(&self, symmetry: u8) -> Self;
+
+    fn transform_action(&self, action: Self::Action, symmetry: u8) -> Self::Action;
+
     fn display(&self, turn: Turn) -> String;
 }
 

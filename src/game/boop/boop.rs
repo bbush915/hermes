@@ -47,6 +47,8 @@ impl Boop {
     pub const BOARD_SIZE: usize = 6;
     pub const POOL_SIZE: u8 = 8;
 
+    const SYMMETRY_COUNT: u8 = 8;
+
     const BOARD_MASK: u64 = (1u64 << 36) - 1;
     const NEIGHBOR_MASKS: [u64; Self::BOARD_SIZE * Self::BOARD_SIZE] = Self::make_neighbor_masks();
     pub const THREE_IN_A_ROW_MASKS: [u64; 80] = Self::make_three_in_a_row_masks();
@@ -217,19 +219,50 @@ impl Boop {
         self.player_graduations += kittens_removed;
     }
 
+    fn transform_bitboard(bitboard: u64, symmetry: u8) -> u64 {
+        let mut result = 0u64;
+
+        for index_old in 0..(Self::BOARD_SIZE * Self::BOARD_SIZE) {
+            if (bitboard >> index_old) & 1 == 1 {
+                let (row_old, col_old) =
+                    (index_old / Self::BOARD_SIZE, index_old % Self::BOARD_SIZE);
+
+                let (row_new, col_new) = Self::transform_position(row_old, col_old, symmetry);
+
+                result |= 1u64 << (row_new * Self::BOARD_SIZE + col_new);
+            }
+        }
+
+        result
+    }
+
+    fn transform_position(row: usize, col: usize, symmetry: u8) -> (usize, usize) {
+        match symmetry {
+            0 => (row, col),
+            1 => (col, Self::BOARD_SIZE - row - 1),
+            2 => (Self::BOARD_SIZE - row - 1, Self::BOARD_SIZE - col - 1),
+            3 => (Self::BOARD_SIZE - col - 1, row),
+            4 => (row, Self::BOARD_SIZE - col - 1),
+            5 => (Self::BOARD_SIZE - row - 1, col),
+            6 => (col, row),
+            7 => (Self::BOARD_SIZE - col - 1, Self::BOARD_SIZE - row - 1),
+            _ => unreachable!(),
+        }
+    }
+
     fn flip_perspective(&mut self) {
         swap(&mut self.player_kittens, &mut self.opponent_kittens);
         swap(&mut self.player_cats, &mut self.opponent_cats);
         swap(&mut self.player_graduations, &mut self.opponent_graduations);
     }
 
-    fn into_indices(mut bits: u64) -> impl Iterator<Item = u8> {
+    fn into_indices(mut bitboard: u64) -> impl Iterator<Item = u8> {
         from_fn(move || {
-            if bits == 0 {
+            if bitboard == 0 {
                 None
             } else {
-                let mask = bits & (!bits + 1);
-                bits ^= mask;
+                let mask = bitboard & (!bitboard + 1);
+                bitboard ^= mask;
 
                 Some(u8::try_from(mask.trailing_zeros()).unwrap())
             }
@@ -385,34 +418,6 @@ impl Game for Boop {
         }
     }
 
-    fn outcome(&self) -> Outcome {
-        // NOTE - Opponent
-
-        for &mask in &Self::THREE_IN_A_ROW_MASKS {
-            if (self.opponent_cats & mask) == mask {
-                return Outcome::Loss;
-            }
-        }
-
-        if u8::try_from(self.opponent_cats.count_ones()).unwrap() == Self::POOL_SIZE {
-            return Outcome::Loss;
-        }
-
-        // NOTE - Player
-
-        for &mask in &Self::THREE_IN_A_ROW_MASKS {
-            if (self.player_cats & mask) == mask {
-                return Outcome::Win;
-            }
-        }
-
-        if u8::try_from(self.player_cats.count_ones()).unwrap() == Self::POOL_SIZE {
-            return Outcome::Win;
-        }
-
-        Outcome::InProgress
-    }
-
     fn get_possible_actions(&self) -> Vec<Action> {
         if self.outcome() != Outcome::InProgress {
             return vec![];
@@ -453,6 +458,34 @@ impl Game for Boop {
         self.flip_perspective();
     }
 
+    fn outcome(&self) -> Outcome {
+        // NOTE - Opponent
+
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
+            if (self.opponent_cats & mask) == mask {
+                return Outcome::Loss;
+            }
+        }
+
+        if u8::try_from(self.opponent_cats.count_ones()).unwrap() == Self::POOL_SIZE {
+            return Outcome::Loss;
+        }
+
+        // NOTE - Player
+
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
+            if (self.player_cats & mask) == mask {
+                return Outcome::Win;
+            }
+        }
+
+        if u8::try_from(self.player_cats.count_ones()).unwrap() == Self::POOL_SIZE {
+            return Outcome::Win;
+        }
+
+        Outcome::InProgress
+    }
+
     fn create_checkpoint(&self) -> Checkpoint {
         Checkpoint {
             phase: self.phase,
@@ -477,6 +510,46 @@ impl Game for Boop {
         self.opponent_kittens = checkpoint.opponent_kittens;
         self.opponent_cats = checkpoint.opponent_cats;
         self.opponent_graduations = checkpoint.opponent_graduations;
+    }
+
+    fn symmetries(&self) -> u8 {
+        Self::SYMMETRY_COUNT
+    }
+
+    fn transform(&self, symmetry: u8) -> Self {
+        let mut game = self.clone();
+
+        game.player_cats = Self::transform_bitboard(self.player_cats, symmetry);
+        game.player_kittens = Self::transform_bitboard(self.player_kittens, symmetry);
+        game.opponent_cats = Self::transform_bitboard(self.opponent_cats, symmetry);
+        game.opponent_kittens = Self::transform_bitboard(self.opponent_kittens, symmetry);
+
+        game
+    }
+
+    fn transform_action(&self, action: Self::Action, symmetry: u8) -> Self::Action {
+        match action {
+            Action::Place { piece, index } => {
+                let (row, col) = (
+                    index as usize / Self::BOARD_SIZE,
+                    index as usize % Self::BOARD_SIZE,
+                );
+
+                let (new_row, new_col) = Self::transform_position(row, col, symmetry);
+
+                let new_index = u8::try_from(new_row * Self::BOARD_SIZE + new_col).unwrap();
+
+                Action::Place {
+                    piece,
+                    index: new_index,
+                }
+            }
+            Action::Graduate { mask } => {
+                let new_mask = Self::transform_bitboard(mask, symmetry);
+
+                Action::Graduate { mask: new_mask }
+            }
+        }
     }
 
     fn display(&self, turn: Turn) -> String {
@@ -640,7 +713,7 @@ impl str::FromStr for Boop {
                     continue;
                 }
 
-                let mask = Boop::xy_to_mask(x, y);
+                let mask = Self::xy_to_mask(x, y);
 
                 match character {
                     'X' => {
@@ -752,8 +825,6 @@ mod tests {
 
         mask
     }
-
-    mod get_possible_actions {}
 
     mod apply_action {
         use super::*;
@@ -1812,10 +1883,6 @@ mod tests {
         }
     }
 
-    mod create_checkpoint {}
-
-    mod restore_checkpoint {}
-
     mod outcome {
         use super::*;
 
@@ -1985,6 +2052,402 @@ mod tests {
             let outcome = game.outcome();
 
             assert_eq!(outcome, Outcome::Win);
+        }
+    }
+
+    mod transform {
+        use super::*;
+
+        #[test]
+        fn should_not_transform() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(0);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_rotate_ninety_degrees_clockwise() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(1);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │   │ X ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║ O │   │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_rotate_one_hundred_eighty_degrees_clockwise() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(2);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ O │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ X ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_rotate_two_hundred_seventy_degrees_clockwise() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(3);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │   │ O ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║ X │   │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_reflect_horizontally() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │ X │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │ O │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(4);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │ X │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │ O │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_reflect_vertically() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │ X │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │ O │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(5);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │ O │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │ X │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_reflect_across_main_diagonal() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │ X │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │ O │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(6);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║ X │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ O ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
+        }
+
+        #[test]
+        fn should_reflect_across_anti_diagonal() {
+            let game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │ X │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │ O │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            let transformed_game = game.transform(7);
+
+            let expected_game = parse_game(
+                "
+                    Player: x x x x x x x
+                    Opponent: o o o o o o o
+
+                    ╔═══╤═══╤═══╤═══╤═══╤═══╗
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║ O │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │ X ║
+                    ╟───┼───┼───┼───┼───┼───╢
+                    ║   │   │   │   │   │   ║
+                    ╚═══╧═══╧═══╧═══╧═══╧═══╝
+                ",
+            );
+
+            assert_eq!(transformed_game, expected_game);
         }
     }
 }
