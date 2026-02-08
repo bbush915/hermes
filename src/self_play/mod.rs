@@ -1,7 +1,7 @@
-mod json_sink;
+mod json_sample_sink;
 mod sample;
-mod sample_sink;
+mod sample_runner_event_sink;
 
-pub use json_sink::JsonSink;
+pub use json_sample_sink::JsonSampleSink;
 pub use sample::Sample;
-pub use sample_sink::SampleSink;
+pub use sample_runner_event_sink::SampleRunnerEventSink;

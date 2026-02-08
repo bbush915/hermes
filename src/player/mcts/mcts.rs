@@ -1,56 +1,94 @@
 use std::marker::PhantomData;
-use std::vec;
 
-use crate::core::{Evaluation, Game, PolicyItem, Turn};
+use rand::SeedableRng;
+use rand::distributions::WeightedIndex;
+use rand::rngs::StdRng;
+use rand_distr::{Dirichlet, Distribution};
+
+use crate::core::{Evaluation, Game, PolicyItem};
 use crate::player::mcts::evaluator::Evaluator;
 use crate::player::mcts::expander::Expander;
+use crate::player::mcts::noise::DirichletNoise;
 use crate::player::mcts::scorer::Scorer;
+use crate::player::mcts::temperature::TemperatureSchedule;
+use crate::player::mcts::tree::{Node, Tree};
 
 #[derive(Clone)]
 pub struct Mcts<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> {
+    rng: StdRng,
+
     simulations: u32,
 
     evaluator: E,
     scorer: S,
     expander: X,
 
+    dirichlet_noise: Option<DirichletNoise>,
+    temperature_schedule: Option<TemperatureSchedule>,
+
     _phantom: PhantomData<G>,
 }
 
 impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
-    pub fn new(simulations: u32, evaluator: E, scorer: S, expander: X) -> Self {
+    pub fn new(options: MtcsOptions<G, E, S, X>) -> Self {
         Self {
-            simulations,
+            rng: StdRng::from_entropy(),
 
-            evaluator,
-            scorer,
-            expander,
+            simulations: options.simulations,
+
+            evaluator: options.evaluator,
+            scorer: options.scorer,
+            expander: options.expander,
+
+            dirichlet_noise: options.dirichlet_noise,
+            temperature_schedule: options.temperature_schedule,
 
             _phantom: PhantomData,
         }
     }
 
-    pub fn search(&mut self, game: &G) -> SearchResult<G> {
+    pub fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = StdRng::seed_from_u64(seed);
+
+        self.evaluator = self.evaluator.with_seed(seed);
+        self.expander = self.expander.with_seed(seed);
+
+        self
+    }
+
+    pub fn with_dirichlet_noise(mut self, dirichlet_noise: DirichletNoise) -> Self {
+        self.dirichlet_noise = Some(dirichlet_noise);
+
+        self
+    }
+
+    pub fn with_temperature_schedule(mut self, temperature_schedule: TemperatureSchedule) -> Self {
+        self.temperature_schedule = Some(temperature_schedule);
+
+        self
+    }
+
+    pub fn search(&mut self, game: &G, turn_number: u32) -> SearchResult<G> {
         let mut tree = Tree::new(game.clone());
 
         for _ in 0..self.simulations {
             let checkpoint = tree.game.create_checkpoint();
 
             let node_index = self.select(&mut tree);
-            let value = self.expand_and_evaluate(&mut tree, node_index);
+            let value = self.expand(&mut tree, node_index);
             Self::backpropagate(&mut tree, node_index, value);
 
             tree.game.restore_checkpoint(checkpoint);
         }
 
-        let evaluation = Self::make_evaluation(&tree);
+        let evaluation = Self::evaluate(&tree);
 
-        let action = evaluation
-            .policy
-            .iter()
-            .max_by(|x, y| x.prior.partial_cmp(&y.prior).unwrap())
-            .unwrap()
-            .action;
+        let temperature = self
+            .temperature_schedule
+            .as_ref()
+            .map_or(1.0, |schedule| schedule.get_temperature(turn_number));
+
+        let action = self.choose_action(&evaluation, temperature);
 
         SearchResult { evaluation, action }
     }
@@ -73,8 +111,8 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
 
                     (child_index, score)
                 })
-                .max_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap())
-                .unwrap();
+                .max_by(|(_, x), (_, y)| x.total_cmp(y))
+                .expect("unable to determine best child");
 
             node_index = child_index;
 
@@ -86,11 +124,15 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         node_index
     }
 
-    fn expand_and_evaluate(&mut self, tree: &mut Tree<G>, node_index: usize) -> f32 {
+    fn expand(&mut self, tree: &mut Tree<G>, node_index: usize) -> f32 {
         let node = &tree.nodes[node_index];
         let turn = node.turn;
 
-        let evaluation = self.evaluator.evaluate(&tree.game);
+        let mut evaluation = self.evaluator.evaluate(&tree.game);
+
+        if node_index == tree.root_index {
+            self.apply_dirichlet_noise(&mut evaluation);
+        }
 
         let value = if turn == tree.nodes[tree.root_index].turn {
             evaluation.value
@@ -113,7 +155,7 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
 
             let child_node = Node {
                 action: Some(action),
-                turn: if turn_complete { turn.flip() } else { turn },
+                turn: if turn_complete { turn.advance() } else { turn },
 
                 parent_index: Some(node_index),
                 child_indices: vec![],
@@ -136,6 +178,27 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         value
     }
 
+    fn apply_dirichlet_noise(&mut self, evaluation: &mut Evaluation<G>) {
+        let Some(DirichletNoise { alpha, epsilon }) = self.dirichlet_noise else {
+            return;
+        };
+
+        if evaluation.policy.len() < 2 {
+            return;
+        }
+
+        let distribution = Dirichlet::new(vec![alpha; evaluation.policy.len()].as_slice())
+            .expect("unable to create dirichlet distribution");
+
+        evaluation
+            .policy
+            .iter_mut()
+            .zip(distribution.sample(&mut self.rng))
+            .for_each(|(policy_item, value)| {
+                policy_item.prior = (1.0 - epsilon) * policy_item.prior + epsilon * value;
+            });
+    }
+
     fn backpropagate(tree: &mut Tree<G>, mut node_index: usize, value: f32) {
         loop {
             let node = &mut tree.nodes[node_index];
@@ -151,7 +214,7 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
         }
     }
 
-    fn make_evaluation(tree: &Tree<G>) -> Evaluation<G> {
+    fn evaluate(tree: &Tree<G>) -> Evaluation<G> {
         let root = &tree.nodes[tree.root_index];
 
         let total_visits: u32 = root
@@ -177,52 +240,74 @@ impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
 
         Evaluation { policy, value }
     }
-}
 
-struct Tree<G: Game> {
-    nodes: Vec<Node<G>>,
-    root_index: usize,
-
-    game: G,
-}
-
-impl<G: Game> Tree<G> {
-    pub fn new(game: G) -> Self {
-        let node = Node {
-            action: None,
-            turn: Turn::Player,
-
-            parent_index: None,
-            child_indices: vec![],
-
-            unexplored_actions: game.get_possible_actions(),
-
-            visits: 0,
-            total_value: 0.0,
-            prior: 0.0,
-        };
-
-        Self {
-            nodes: vec![node],
-            root_index: 0,
-
-            game,
+    fn choose_action(&mut self, evaluation: &Evaluation<G>, temperature: f32) -> G::Action {
+        if temperature == 0.0 {
+            return evaluation
+                .policy
+                .iter()
+                .max_by(|x, y| x.prior.total_cmp(&y.prior))
+                .expect("unable to choose action")
+                .action;
         }
+
+        let weights: Vec<f32> = evaluation
+            .policy
+            .iter()
+            .map(|policy_item| policy_item.prior.powf(1.0 / temperature))
+            .collect();
+
+        let distribution =
+            WeightedIndex::new(&weights).expect("unable to created weighted distribution");
+
+        let index = distribution.sample(&mut self.rng);
+
+        evaluation.policy[index].action
     }
 }
 
-pub struct Node<G: Game> {
-    action: Option<G::Action>,
-    turn: Turn,
+pub struct MtcsOptions<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> {
+    pub simulations: u32,
 
-    parent_index: Option<usize>,
-    child_indices: Vec<usize>,
+    pub evaluator: E,
+    pub scorer: S,
+    pub expander: X,
 
-    pub visits: u32,
-    pub total_value: f32,
-    pub prior: f32,
+    pub dirichlet_noise: Option<DirichletNoise>,
+    pub temperature_schedule: Option<TemperatureSchedule>,
 
-    pub unexplored_actions: Vec<G::Action>,
+    pub phantom: PhantomData<G>,
+}
+
+impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> MtcsOptions<G, E, S, X> {
+    pub fn new(simulations: u32, evaluator: E, scorer: S, expander: X) -> Self {
+        Self {
+            simulations,
+
+            evaluator,
+            scorer,
+            expander,
+
+            dirichlet_noise: None,
+            temperature_schedule: None,
+
+            phantom: PhantomData,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_dirichlet_noise(mut self, dirichlet_noise: DirichletNoise) -> Self {
+        self.dirichlet_noise = Some(dirichlet_noise);
+
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_temperature_schedule(mut self, schedule: TemperatureSchedule) -> Self {
+        self.temperature_schedule = Some(schedule);
+
+        self
+    }
 }
 
 pub struct SearchResult<G: Game> {

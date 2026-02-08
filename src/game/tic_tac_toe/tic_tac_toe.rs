@@ -2,7 +2,7 @@ use std::iter::from_fn;
 use std::mem::swap;
 use std::{fmt, str};
 
-use crate::core::{Game, Outcome};
+use crate::core::{Game, Outcome, Turn};
 use crate::game::tic_tac_toe::action::Action;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -35,7 +35,7 @@ impl TicTacToe {
                 let mask = bits & (!bits + 1);
                 bits ^= mask;
 
-                Some(mask.trailing_zeros() as u8)
+                Some(u8::try_from(mask.trailing_zeros()).unwrap())
             }
         })
     }
@@ -145,7 +145,7 @@ impl Game for TicTacToe {
 
                 self.player_marks |= mask;
             }
-        };
+        }
 
         true
     }
@@ -157,7 +157,7 @@ impl Game for TicTacToe {
     fn outcome(&self) -> Outcome {
         // NOTE - Opponent
 
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
             if (self.opponent_marks & mask) == mask {
                 return Outcome::Loss;
             }
@@ -165,7 +165,7 @@ impl Game for TicTacToe {
 
         // NOTE - Player
 
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
             if (self.player_marks & mask) == mask {
                 return Outcome::Win;
             }
@@ -192,14 +192,14 @@ impl Game for TicTacToe {
         self.opponent_marks = checkpoint.opponent_marks;
     }
 
-    fn display(&self, turn: crate::Turn) -> String {
+    fn display(&self, turn: Turn) -> String {
         let mut game = self.clone();
 
-        if turn == crate::Turn::Opponent {
+        if turn == Turn::PlayerTwo {
             game.flip_perspective();
         }
 
-        format!("{}", game)
+        format!("{game}")
     }
 }
 
@@ -223,7 +223,7 @@ impl fmt::Display for TicTacToe {
                     ' '
                 };
 
-                write!(formatter, " {} ", character)?;
+                write!(formatter, " {character} ")?;
 
                 if y < Self::BOARD_SIZE - 1 {
                     write!(formatter, "│")?;
@@ -280,7 +280,7 @@ impl str::FromStr for TicTacToe {
                 match character {
                     'X' => player_marks |= mask,
                     'O' => opponent_marks |= mask,
-                    _ => return Err(format!("invalid character: {}", character)),
+                    _ => return Err(format!("invalid character: {character}")),
                 }
             }
         }
@@ -300,15 +300,15 @@ mod tests {
         value
             .trim()
             .lines()
-            .map(|line| line.trim())
+            .map(str::trim)
             .collect::<Vec<_>>()
             .join("\n")
             .parse()
-            .unwrap()
+            .expect("unable to parse game")
     }
 
     fn xy_to_index(x: usize, y: usize) -> u8 {
-        (x * TicTacToe::BOARD_SIZE + y) as u8
+        u8::try_from(x * TicTacToe::BOARD_SIZE + y).unwrap()
     }
 
     mod get_possible_actions {}

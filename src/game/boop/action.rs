@@ -13,7 +13,7 @@ impl fmt::Display for Action {
                 let row = (*index / 6) + 1;
                 let col = (*index % 6) + 1;
 
-                write!(f, "places a {:?} at ({}, {}).", piece, row, col)
+                write!(f, "places a {piece:?} at ({row}, {col}).")
             }
             Action::Graduate { mask } => {
                 write!(f, "graduates the piece(s) at ")?;
@@ -29,7 +29,7 @@ impl fmt::Display for Action {
                         let row = (i / 6) + 1;
                         let col = (i % 6) + 1;
 
-                        write!(f, "({}, {})", row, col)?;
+                        write!(f, "({row}, {col})")?;
 
                         first = false;
                     }

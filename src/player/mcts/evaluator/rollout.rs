@@ -1,4 +1,6 @@
-use rand::{SeedableRng, rngs::StdRng, seq::IndexedRandom};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 
 use crate::core::{Evaluation, Game, Outcome, PolicyItem};
 use crate::player::mcts::evaluator::Evaluator;
@@ -11,14 +13,8 @@ pub struct RolloutEvaluator {
 impl RolloutEvaluator {
     pub fn new() -> Self {
         Self {
-            rng: StdRng::from_os_rng(),
+            rng: StdRng::from_entropy(),
         }
-    }
-
-    pub fn with_seed(mut self, seed: u64) -> Self {
-        self.rng = StdRng::seed_from_u64(seed);
-
-        self
     }
 
     fn rollout<G: Game>(&mut self, game: &G) -> f32 {
@@ -32,16 +28,12 @@ impl RolloutEvaluator {
                     Outcome::Win => 1.0,
                     Outcome::Loss => -1.0,
                     Outcome::Draw => 0.0,
-                    _ => unreachable!(),
+                    Outcome::InProgress => unreachable!(),
                 };
             }
 
-            let action = match actions.choose(&mut self.rng) {
-                Some(&action) => action,
-                None => {
-                    println!("{}", game);
-                    panic!("no legal actions available")
-                }
+            let Some(&action) = actions.choose(&mut self.rng) else {
+                panic!("no legal actions available")
             };
 
             game.apply_action(action);
@@ -49,14 +41,26 @@ impl RolloutEvaluator {
     }
 }
 
+impl Default for RolloutEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: Game> Evaluator<G> for RolloutEvaluator {
+    fn with_seed(mut self, seed: u64) -> Self {
+        self.rng = StdRng::seed_from_u64(seed);
+
+        self
+    }
+
     fn evaluate(&mut self, game: &G) -> Evaluation<G> {
         if game.outcome() != Outcome::InProgress {
             let value = match game.outcome() {
                 Outcome::Win => 1.0,
                 Outcome::Loss => -1.0,
                 Outcome::Draw => 0.0,
-                _ => unreachable!(),
+                Outcome::InProgress => unreachable!(),
             };
 
             return Evaluation {

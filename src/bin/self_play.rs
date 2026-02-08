@@ -4,22 +4,29 @@ use std::path::PathBuf;
 use clap::Parser;
 
 use hermes::{
-    ActionEncoder, BoopActionEncoder, BoopStateEncoder, JsonSink, NeuralNetworkMctsPlayer,
-    OnnxNeuralNetwork, RandomNeuralNetwork, Runner, SampleSink, StatisticsSink,
+    BoopActionEncoder, BoopStateEncoder, DirichletNoise, JsonSampleSink, NeuralNetworkMctsPlayer,
+    OnnxNeuralNetwork, Runner, SampleRunnerEventSink, StatisticsRunnerEventSink,
+    TemperatureSchedule,
 };
 
 #[derive(Parser)]
 #[command(name = "self-play")]
 #[command(about = "Run self-play games and generate training data.")]
 struct Args {
-    #[arg(short, long, default_value = None)]
-    output: Option<PathBuf>,
-
     #[arg(short, long, default_value_t = 1)]
-    games: u64,
+    games: u32,
+
+    #[arg(short, long)]
+    model: PathBuf,
 
     #[arg(short, long, default_value_t = 100)]
     simulations: u32,
+
+    #[arg(short, long, default_value_t = 150)]
+    max_turns: u32,
+
+    #[arg(short, long, default_value = None)]
+    output: Option<PathBuf>,
 }
 
 fn main() {
@@ -28,49 +35,42 @@ fn main() {
     let state_encoder = BoopStateEncoder::new();
     let action_encoder = BoopActionEncoder::new();
 
-    // let neural_network = RandomNeuralNetwork::new(action_encoder.size());
+    let neural_network =
+        OnnxNeuralNetwork::new(args.model, state_encoder).expect("failed to load onnx model");
 
-    let neural_network = OnnxNeuralNetwork::new(
-        "/Users/bbush/Source/hermes/training/models/onnx/iter_0.onnx",
-        state_encoder.clone(),
-    )
-    .expect("failed to load ONNX model");
-
-    let player1 = NeuralNetworkMctsPlayer::new(
+    let player_1 = NeuralNetworkMctsPlayer::new(
         args.simulations,
-        state_encoder.clone(),
-        action_encoder.clone(),
+        state_encoder,
+        action_encoder,
         neural_network,
-    );
+    )
+    .with_dirichlet_noise(DirichletNoise {
+        alpha: 0.5,
+        epsilon: 0.25,
+    })
+    .with_temperature_schedule(TemperatureSchedule::Step {
+        threshold: 30,
+        hi: 1.0,
+        lo: 0.0,
+    });
 
-    let player2 = player1.clone();
+    let player_2 = player_1.clone();
 
-    if args.output.is_none() {
-        let sink = StatisticsSink::new();
+    if let Some(path) = &args.output {
+        let file = File::create(path).expect("failed to create output file");
 
-        let mut runner = Runner::new(args.games, player1, player2, sink);
+        let json_sink = JsonSampleSink::new(file);
+        let sample_sink = SampleRunnerEventSink::new(state_encoder, action_encoder, json_sink);
+
+        let mut runner =
+            Runner::new(args.games, player_1, player_2, sample_sink).with_max_turns(args.max_turns);
 
         runner.run();
-
-        let StatisticsSink {
-            player_wins,
-            opponent_wins,
-        } = runner.into_sink();
-
-        println!(
-            "Player wins: {}, Opponent wins: {}",
-            player_wins, opponent_wins
-        );
     } else {
-        let file = File::create(&args.output.as_ref().unwrap()).expect(&format!(
-            "Failed to create file: {:?}",
-            args.output.as_ref().unwrap()
-        ));
+        let statistics_sink = StatisticsRunnerEventSink::new();
 
-        let json_sink = JsonSink::new(file);
-        let sample_sink = SampleSink::new(state_encoder, action_encoder, json_sink);
-
-        let mut runner = Runner::new(args.games, player1, player2, sample_sink);
+        let mut runner = Runner::new(args.games, player_1, player_2, statistics_sink)
+            .with_max_turns(args.max_turns);
 
         runner.run();
     }

@@ -2,7 +2,7 @@ use std::iter::from_fn;
 use std::mem::swap;
 use std::{fmt, str};
 
-use crate::core::{Game, Outcome};
+use crate::core::{Game, Outcome, Turn};
 use crate::game::boop::action::{Action, Piece};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -52,10 +52,10 @@ impl Boop {
     pub const THREE_IN_A_ROW_MASKS: [u64; 80] = Self::make_three_in_a_row_masks();
 
     pub fn player_pool(&self) -> Pool {
-        let kittens_played = self.player_kittens.count_ones() as u8;
+        let kittens_played = u8::try_from(self.player_kittens.count_ones()).unwrap();
         let kittens_available = Self::POOL_SIZE - self.player_graduations - kittens_played;
 
-        let cats_played = self.player_cats.count_ones() as u8;
+        let cats_played = u8::try_from(self.player_cats.count_ones()).unwrap();
         let cats_available = self.player_graduations - cats_played;
 
         Pool {
@@ -65,10 +65,10 @@ impl Boop {
     }
 
     pub fn opponent_pool(&self) -> Pool {
-        let kittens_played = self.opponent_kittens.count_ones() as u8;
+        let kittens_played = u8::try_from(self.opponent_kittens.count_ones()).unwrap();
         let kittens_available = Self::POOL_SIZE - self.opponent_graduations - kittens_played;
 
-        let cats_played = self.opponent_cats.count_ones() as u8;
+        let cats_played = u8::try_from(self.opponent_cats.count_ones()).unwrap();
         let cats_available = self.opponent_graduations - cats_played;
 
         Pool {
@@ -94,21 +94,22 @@ impl Boop {
         let empty_square_count = empty_squares.count_ones() as usize;
 
         let mut actions = Vec::with_capacity(
-            empty_square_count * (has_kitten_available as usize + has_cat_available as usize),
+            empty_square_count
+                * (usize::from(has_kitten_available) + usize::from(has_cat_available)),
         );
 
         for index in Self::into_indices(empty_squares) {
             if has_kitten_available {
                 actions.push(Action::Place {
                     piece: Piece::Kitten,
-                    index: index,
+                    index,
                 });
             }
 
             if has_cat_available {
                 actions.push(Action::Place {
                     piece: Piece::Cat,
-                    index: index,
+                    index,
                 });
             }
         }
@@ -122,13 +123,13 @@ impl Boop {
         let mut actions =
             Vec::with_capacity(Self::THREE_IN_A_ROW_MASKS.len() + Self::POOL_SIZE as usize);
 
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
             if (player_pieces & mask) == mask {
                 actions.push(Action::Graduate { mask });
             }
         }
 
-        if player_pieces.count_ones() as u8 == Self::POOL_SIZE {
+        if u8::try_from(player_pieces.count_ones()).unwrap() == Self::POOL_SIZE {
             while player_pieces != 0 {
                 let mask = player_pieces & (!player_pieces + 1);
                 player_pieces &= player_pieces - 1;
@@ -178,25 +179,25 @@ impl Boop {
                 &mut self.opponent_cats
             };
 
-            let adjacent_index = mask.trailing_zeros() as u8;
+            let adjacent_index = u8::try_from(mask.trailing_zeros()).unwrap();
             let (adj_x, adj_y) = Self::index_to_xy(adjacent_index);
 
-            let dx = adj_x as isize - x as isize;
-            let dy = adj_y as isize - y as isize;
+            let dx = adj_x.cast_signed() - x.cast_signed();
+            let dy = adj_y.cast_signed() - y.cast_signed();
 
-            let x_ = adj_x as isize + dx;
-            let y_ = adj_y as isize + dy;
+            let x_ = adj_x.cast_signed() + dx;
+            let y_ = adj_y.cast_signed() + dy;
 
             if x_ < 0
-                || x_ >= Self::BOARD_SIZE as isize
+                || x_ >= Self::BOARD_SIZE.cast_signed()
                 || y_ < 0
-                || y_ >= Self::BOARD_SIZE as isize
+                || y_ >= Self::BOARD_SIZE.cast_signed()
             {
                 *target_board &= !mask;
                 continue;
             }
 
-            let destination_mask = Self::xy_to_mask(x_ as usize, y_ as usize);
+            let destination_mask = Self::xy_to_mask(x_.cast_unsigned(), y_.cast_unsigned());
 
             if (destination_mask & all_pieces) != 0 {
                 continue;
@@ -208,7 +209,7 @@ impl Boop {
     }
 
     fn apply_graduate_action(&mut self, mask: u64) {
-        let kittens_removed = (self.player_kittens & mask).count_ones() as u8;
+        let kittens_removed = u8::try_from((self.player_kittens & mask).count_ones()).unwrap();
 
         self.player_kittens &= !mask;
         self.player_cats &= !mask;
@@ -230,7 +231,7 @@ impl Boop {
                 let mask = bits & (!bits + 1);
                 bits ^= mask;
 
-                Some(mask.trailing_zeros() as u8)
+                Some(u8::try_from(mask.trailing_zeros()).unwrap())
             }
         })
     }
@@ -254,8 +255,8 @@ impl Boop {
             while y < Self::BOARD_SIZE {
                 let mut mask = 0u64;
 
-                let mut dx = -1i8;
-                let mut dy = -1i8;
+                let mut dx: isize = -1;
+                let mut dy: isize = -1;
 
                 while dx <= 1 {
                     while dy <= 1 {
@@ -264,15 +265,15 @@ impl Boop {
                             continue;
                         }
 
-                        let x_ = x as i8 + dx;
-                        let y_ = y as i8 + dy;
+                        let x_ = x.cast_signed() + dx;
+                        let y_ = y.cast_signed() + dy;
 
                         if x_ >= 0
-                            && x_ < Self::BOARD_SIZE as i8
+                            && x_ < Self::BOARD_SIZE.cast_signed()
                             && y_ >= 0
-                            && y_ < Self::BOARD_SIZE as i8
+                            && y_ < Self::BOARD_SIZE.cast_signed()
                         {
-                            mask |= Self::xy_to_mask(x_ as usize, y_ as usize);
+                            mask |= Self::xy_to_mask(x_.cast_unsigned(), y_.cast_unsigned());
                         }
 
                         dy += 1;
@@ -387,25 +388,25 @@ impl Game for Boop {
     fn outcome(&self) -> Outcome {
         // NOTE - Opponent
 
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
             if (self.opponent_cats & mask) == mask {
                 return Outcome::Loss;
             }
         }
 
-        if self.opponent_cats.count_ones() as u8 == Self::POOL_SIZE {
+        if u8::try_from(self.opponent_cats.count_ones()).unwrap() == Self::POOL_SIZE {
             return Outcome::Loss;
         }
 
         // NOTE - Player
 
-        for &mask in Self::THREE_IN_A_ROW_MASKS.iter() {
+        for &mask in &Self::THREE_IN_A_ROW_MASKS {
             if (self.player_cats & mask) == mask {
                 return Outcome::Win;
             }
         }
 
-        if self.player_cats.count_ones() as u8 == Self::POOL_SIZE {
+        if u8::try_from(self.player_cats.count_ones()).unwrap() == Self::POOL_SIZE {
             return Outcome::Win;
         }
 
@@ -441,7 +442,7 @@ impl Game for Boop {
             Action::Graduate { mask } => {
                 self.apply_graduate_action(mask);
             }
-        };
+        }
 
         turn_complete
     }
@@ -478,14 +479,14 @@ impl Game for Boop {
         self.opponent_graduations = checkpoint.opponent_graduations;
     }
 
-    fn display(&self, turn: crate::Turn) -> String {
+    fn display(&self, turn: Turn) -> String {
         let mut game = self.clone();
 
-        if turn == crate::Turn::Opponent {
+        if turn == Turn::PlayerTwo {
             game.flip_perspective();
         }
 
-        format!("{}", game)
+        format!("{game}")
     }
 }
 
@@ -545,7 +546,7 @@ impl fmt::Display for Boop {
                     ' '
                 };
 
-                write!(formatter, " {} ", character)?;
+                write!(formatter, " {character} ")?;
 
                 if y < Self::BOARD_SIZE - 1 {
                     write!(formatter, "│")?;
@@ -593,12 +594,12 @@ impl str::FromStr for Boop {
             return Err("unexpected number of lines".to_string());
         }
 
-        if let Some(player_line) = lines.get(0) {
+        if let Some(player_line) = lines.first() {
             if player_line.starts_with("Player:") {
                 let pool = player_line.trim_start_matches("Player:").trim();
 
-                player_kittens_available = pool.matches('x').count() as u8;
-                player_cats_available = pool.matches('X').count() as u8;
+                player_kittens_available = u8::try_from(pool.matches('x').count()).unwrap();
+                player_cats_available = u8::try_from(pool.matches('X').count()).unwrap();
 
                 player_graduations = player_cats_available;
             } else {
@@ -610,8 +611,8 @@ impl str::FromStr for Boop {
             if opponent_line.starts_with("Opponent:") {
                 let pool = opponent_line.trim_start_matches("Opponent:").trim();
 
-                opponent_kittens_available = pool.matches('o').count() as u8;
-                opponent_cats_available = pool.matches('O').count() as u8;
+                opponent_kittens_available = u8::try_from(pool.matches('o').count()).unwrap();
+                opponent_cats_available = u8::try_from(pool.matches('O').count()).unwrap();
 
                 opponent_graduations = opponent_cats_available;
             } else {
@@ -666,7 +667,7 @@ impl str::FromStr for Boop {
 
                         opponent_kittens_played += 1;
                     }
-                    _ => return Err(format!("invalid character: {}", character)),
+                    _ => return Err(format!("invalid character: {character}")),
                 }
             }
         }
@@ -719,11 +720,11 @@ mod tests {
         value
             .trim()
             .lines()
-            .map(|line| line.trim())
+            .map(str::trim)
             .collect::<Vec<_>>()
             .join("\n")
             .parse()
-            .unwrap()
+            .expect("unable to parse game")
     }
 
     trait BoopTestExtensions {
@@ -739,13 +740,13 @@ mod tests {
     }
 
     fn xy_to_index(x: usize, y: usize) -> u8 {
-        (x * Boop::BOARD_SIZE + y) as u8
+        u8::try_from(x * Boop::BOARD_SIZE + y).unwrap()
     }
 
     fn xys_to_mask(xys: &[(usize, usize)]) -> u64 {
         let mut mask = 0u64;
 
-        for &(x, y) in xys.iter() {
+        for &(x, y) in xys {
             mask |= 1u64 << xy_to_index(x, y);
         }
 

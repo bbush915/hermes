@@ -1,8 +1,8 @@
 use std::f32;
 
 use crate::core::Game;
-use crate::player::mcts::mcts::Node;
 use crate::player::mcts::scorer::scorer::Scorer;
+use crate::player::mcts::tree::Node;
 
 #[derive(Clone)]
 pub struct PuctScorer {

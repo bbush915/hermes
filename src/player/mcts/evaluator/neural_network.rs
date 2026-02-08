@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::core::{Evaluation, Game, PolicyItem};
 use crate::neural_network::{ActionEncoder, NeuralNetwork, StateEncoder};
 use crate::player::mcts::evaluator::Evaluator;
@@ -13,7 +15,7 @@ pub struct NeuralNetworkEvaluator<
     action_encoder: AE,
     neural_network: NN,
 
-    _marker: std::marker::PhantomData<G>,
+    _phantom: PhantomData<G>,
 }
 
 impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, NN: NeuralNetwork>
@@ -25,7 +27,7 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, NN: NeuralNetwork>
             action_encoder,
             neural_network,
 
-            _marker: std::marker::PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
@@ -37,6 +39,10 @@ where
     AE: ActionEncoder<G>,
     NN: NeuralNetwork,
 {
+    fn with_seed(self, _seed: u64) -> Self {
+        self
+    }
+
     fn evaluate(&mut self, game: &G) -> Evaluation<G> {
         let state = self.state_encoder.encode(game);
 

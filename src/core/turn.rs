@@ -1,14 +1,14 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Turn {
-    Player,
-    Opponent,
+    PlayerOne,
+    PlayerTwo,
 }
 
 impl Turn {
-    pub fn flip(self) -> Self {
+    pub fn advance(self) -> Self {
         match self {
-            Turn::Player => Turn::Opponent,
-            Turn::Opponent => Turn::Player,
+            Turn::PlayerOne => Turn::PlayerTwo,
+            Turn::PlayerTwo => Turn::PlayerOne,
         }
     }
 }

@@ -1,4 +1,5 @@
 mod complete;
+#[allow(clippy::module_inception)]
 mod expander;
 mod random;
 

@@ -22,6 +22,6 @@ impl fmt::Display for Action {
             },
         };
 
-        write!(f, "marks the {} square.", square)
+        write!(f, "marks the {square} square.")
     }
 }

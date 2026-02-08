@@ -1,9 +1,8 @@
-mod null_sink;
+#[allow(clippy::module_inception)]
 mod runner;
-mod statistics_sink;
-mod stdout_sink;
+mod statistics_runner_event_sink;
+mod stdout_runner_event_sink;
 
-pub use null_sink::NullSink;
-pub use runner::{Runner, RunnerEvent};
-pub use statistics_sink::StatisticsSink;
-pub use stdout_sink::StdoutSink;
+pub use runner::{Runner, RunnerEvent, RunnerEventContext, RunnerEventKind};
+pub use statistics_runner_event_sink::StatisticsRunnerEventSink;
+pub use stdout_runner_event_sink::StdoutRunnerEventSink;

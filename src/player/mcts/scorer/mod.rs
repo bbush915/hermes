@@ -1,4 +1,5 @@
 mod puct;
+#[allow(clippy::module_inception)]
 mod scorer;
 mod ucb1;
 

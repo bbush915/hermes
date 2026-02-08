@@ -1,4 +1,6 @@
-use rand::{SeedableRng, rngs::StdRng, seq::IndexedRandom};
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use rand::seq::SliceRandom;
 
 use crate::core::{Choice, Game, Player};
 
@@ -10,7 +12,7 @@ pub struct RandomPlayer {
 impl RandomPlayer {
     pub fn new() -> Self {
         Self {
-            rng: StdRng::from_os_rng(),
+            rng: StdRng::from_entropy(),
         }
     }
 
@@ -21,12 +23,18 @@ impl RandomPlayer {
     }
 }
 
+impl Default for RandomPlayer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<G: Game> Player<G> for RandomPlayer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Random"
     }
 
-    fn choose_action(&mut self, game: &G) -> Choice<G> {
+    fn choose_action(&mut self, game: &G, _turn_number: u32) -> Choice<G> {
         let actions = game.get_possible_actions();
 
         match actions.choose(&mut self.rng) {

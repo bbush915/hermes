@@ -33,10 +33,9 @@ impl MinimaxPlayer {
     }
 
     fn minimax<G: Game>(
-        &self,
         game: &mut G,
         depth: usize,
-        mut objective: Objective,
+        objective: Objective,
         alpha: f32,
         beta: f32,
     ) -> (f32, Option<G::Action>) {
@@ -71,7 +70,7 @@ impl MinimaxPlayer {
                 game.end_turn();
             }
 
-            let (value, _) = self.minimax(
+            let (value, _) = Self::minimax(
                 game,
                 depth - 1,
                 if turn_complete {
@@ -114,12 +113,12 @@ impl MinimaxPlayer {
 }
 
 impl<G: Game> Player<G> for MinimaxPlayer {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Minimax with Alpha-Beta Pruning"
     }
 
-    fn choose_action(&mut self, game: &G) -> Choice<G> {
-        let (_, action) = self.minimax(
+    fn choose_action(&mut self, game: &G, _turn_number: u32) -> Choice<G> {
+        let (_, action) = Self::minimax(
             &mut game.clone(),
             self.depth,
             Objective::Maximize,

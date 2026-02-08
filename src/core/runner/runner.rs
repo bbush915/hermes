@@ -1,98 +1,138 @@
-use crate::core::evaluation::Evaluation;
+use std::marker::PhantomData;
+
+use crate::core::Evaluation;
 use crate::core::event::EventSink;
 use crate::core::game::{Game, Outcome};
 use crate::core::player::Player;
 use crate::core::turn::Turn;
 
-pub struct Runner<G, P, O, S>
+pub struct Runner<G, P1, P2, S>
 where
     G: Game,
-    P: Player<G>,
-    O: Player<G>,
+    P1: Player<G>,
+    P2: Player<G>,
     S: EventSink<RunnerEvent<G>>,
 {
-    games: u64,
+    games: u32,
+    max_turns: Option<u32>,
 
-    player: P,
-    opponent: O,
+    player_1: P1,
+    player_2: P2,
 
     sink: S,
 
-    _marker: std::marker::PhantomData<G>,
+    _phantom: PhantomData<G>,
 }
 
-impl<G, P, O, S> Runner<G, P, O, S>
+impl<G, P1, P2, S> Runner<G, P1, P2, S>
 where
     G: Game,
-    P: Player<G>,
-    O: Player<G>,
+    P1: Player<G>,
+    P2: Player<G>,
     S: EventSink<RunnerEvent<G>>,
 {
-    pub fn new(games: u64, player: P, opponent: O, sink: S) -> Self {
+    pub fn new(games: u32, player_1: P1, player_2: P2, sink: S) -> Self {
         Self {
             games,
+            max_turns: None,
 
-            player,
-            opponent,
+            player_1,
+            player_2,
 
             sink,
 
-            _marker: std::marker::PhantomData,
+            _phantom: PhantomData,
         }
     }
 
+    pub fn with_max_turns(mut self, max_turns: u32) -> Self {
+        self.max_turns = Some(max_turns);
+
+        self
+    }
+
     pub fn run(&mut self) {
+        self.sink.emit(RunnerEvent {
+            kind: RunnerEventKind::RunnerStarted,
+            context: None,
+        });
+
         for game_number in 0..self.games {
             let mut game = G::new();
 
             let mut turn_number = 0;
 
             let mut turn = if game_number % 2 == 0 {
-                Turn::Player
+                Turn::PlayerOne
             } else {
-                Turn::Opponent
+                Turn::PlayerTwo
             };
 
-            self.sink.emit(RunnerEvent::GameStarted { game_number });
+            self.sink.emit(RunnerEvent {
+                kind: RunnerEventKind::GameStarted,
+                context: Some(RunnerEventContext {
+                    game_number,
+                    game: game.clone(),
+                    turn_number,
+                    turn,
+                }),
+            });
 
-            self.sink.emit(RunnerEvent::TurnStarted {
-                game_number,
-                turn_number,
-                turn,
+            self.sink.emit(RunnerEvent {
+                kind: RunnerEventKind::TurnStarted,
+                context: Some(RunnerEventContext {
+                    game_number,
+                    game: game.clone(),
+                    turn_number,
+                    turn,
+                }),
             });
 
             loop {
                 let choice = match turn {
-                    Turn::Player => self.player.choose_action(&game),
-                    Turn::Opponent => self.opponent.choose_action(&game),
+                    Turn::PlayerOne => self.player_1.choose_action(&game, turn_number),
+                    Turn::PlayerTwo => self.player_2.choose_action(&game, turn_number),
                 };
 
                 if let Some(evaluation) = choice.evaluation {
-                    self.sink.emit(RunnerEvent::PositionEvaluated {
-                        game_number,
-                        turn_number,
-                        turn,
-                        state: game.clone(),
-                        evaluation,
+                    self.sink.emit(RunnerEvent {
+                        kind: RunnerEventKind::PositionEvaluated { evaluation },
+                        context: Some(RunnerEventContext {
+                            game_number,
+                            game: game.clone(),
+                            turn_number,
+                            turn,
+                        }),
                     });
                 }
 
                 let turn_complete = game.apply_action(choice.action);
 
-                self.sink.emit(RunnerEvent::ActionApplied {
-                    game_number,
-                    turn_number,
-                    turn,
-                    state: game.clone(),
-                    action: choice.action,
-                });
-
-                if turn_number > 150 {
-                    self.sink.emit(RunnerEvent::GameFinished {
+                self.sink.emit(RunnerEvent {
+                    kind: RunnerEventKind::ActionApplied {
+                        action: choice.action,
+                    },
+                    context: Some(RunnerEventContext {
                         game_number,
+                        game: game.clone(),
                         turn_number,
                         turn,
-                        outcome: Outcome::Draw,
+                    }),
+                });
+
+                if let Some(max_turns) = self.max_turns
+                    && turn_number > max_turns
+                {
+                    self.sink.emit(RunnerEvent {
+                        kind: RunnerEventKind::GameFinished {
+                            outcome: Outcome::Draw,
+                        },
+                        context: Some(RunnerEventContext {
+                            game_number,
+                            game: game.clone(),
+                            turn_number,
+                            turn,
+                        }),
                     });
 
                     break;
@@ -101,11 +141,14 @@ where
                 match game.outcome() {
                     Outcome::InProgress => {}
                     outcome => {
-                        self.sink.emit(RunnerEvent::GameFinished {
-                            game_number,
-                            turn_number,
-                            turn,
-                            outcome,
+                        self.sink.emit(RunnerEvent {
+                            kind: RunnerEventKind::GameFinished { outcome },
+                            context: Some(RunnerEventContext {
+                                game_number,
+                                game: game.clone(),
+                                turn_number,
+                                turn,
+                            }),
                         });
 
                         break;
@@ -113,65 +156,61 @@ where
                 }
 
                 if turn_complete {
-                    self.sink.emit(RunnerEvent::TurnFinished {
-                        game_number,
-                        turn_number,
-                        turn,
+                    self.sink.emit(RunnerEvent {
+                        kind: RunnerEventKind::TurnFinished,
+                        context: Some(RunnerEventContext {
+                            game_number,
+                            game: game.clone(),
+                            turn_number,
+                            turn,
+                        }),
                     });
-
-                    turn_number += 1;
 
                     game.end_turn();
 
-                    turn = turn.flip();
+                    turn = turn.advance();
+                    turn_number += 1;
 
-                    self.sink.emit(RunnerEvent::TurnStarted {
-                        game_number,
-                        turn_number,
-                        turn,
+                    self.sink.emit(RunnerEvent {
+                        kind: RunnerEventKind::TurnStarted,
+                        context: Some(RunnerEventContext {
+                            game_number,
+                            game: game.clone(),
+                            turn_number,
+                            turn,
+                        }),
                     });
                 }
             }
         }
-    }
 
-    pub fn into_sink(self) -> S {
-        self.sink
+        self.sink.emit(RunnerEvent {
+            kind: RunnerEventKind::RunnerFinished,
+            context: None,
+        });
     }
 }
 
-pub enum RunnerEvent<G: Game> {
-    GameStarted {
-        game_number: u64,
-    },
-    TurnStarted {
-        game_number: u64,
-        turn_number: u64,
-        turn: Turn,
-    },
-    PositionEvaluated {
-        game_number: u64,
-        turn_number: u64,
-        turn: Turn,
-        state: G,
-        evaluation: Evaluation<G>,
-    },
-    ActionApplied {
-        game_number: u64,
-        turn_number: u64,
-        turn: Turn,
-        state: G,
-        action: G::Action,
-    },
-    TurnFinished {
-        game_number: u64,
-        turn_number: u64,
-        turn: Turn,
-    },
-    GameFinished {
-        game_number: u64,
-        turn_number: u64,
-        turn: Turn,
-        outcome: Outcome,
-    },
+pub struct RunnerEvent<G: Game> {
+    pub kind: RunnerEventKind<G>,
+    pub context: Option<RunnerEventContext<G>>,
+}
+
+pub enum RunnerEventKind<G: Game> {
+    RunnerStarted,
+    GameStarted,
+    TurnStarted,
+    PositionEvaluated { evaluation: Evaluation<G> },
+    ActionApplied { action: G::Action },
+    TurnFinished,
+    GameFinished { outcome: Outcome },
+    RunnerFinished,
+}
+
+pub struct RunnerEventContext<G: Game> {
+    pub game_number: u32,
+    pub game: G,
+
+    pub turn_number: u32,
+    pub turn: Turn,
 }

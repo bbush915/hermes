@@ -1,9 +1,17 @@
-use crate::core::{EventSink, Game, Outcome, PolicyItem, RunnerEvent, Turn};
-use crate::neural_network::ActionEncoder;
-use crate::neural_network::StateEncoder;
+use std::marker::PhantomData;
+
+use crate::core::{
+    EventSink, Game, Outcome, PolicyItem, RunnerEvent, RunnerEventContext, RunnerEventKind, Turn,
+};
+use crate::neural_network::{ActionEncoder, StateEncoder};
 use crate::self_play::Sample;
 
-pub struct SampleSink<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>> {
+pub struct SampleRunnerEventSink<
+    G: Game,
+    SE: StateEncoder<G>,
+    AE: ActionEncoder<G>,
+    S: EventSink<Sample>,
+> {
     state_encoder: SE,
     action_encoder: AE,
 
@@ -11,14 +19,14 @@ pub struct SampleSink<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: Eve
 
     sink: S,
 
-    _marker: std::marker::PhantomData<G>,
+    _phantom: PhantomData<G>,
 }
 
 impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
-    SampleSink<G, SE, AE, S>
+    SampleRunnerEventSink<G, SE, AE, S>
 {
     pub fn new(state_encoder: SE, action_encoder: AE, sink: S) -> Self {
-        SampleSink {
+        SampleRunnerEventSink {
             state_encoder,
             action_encoder,
 
@@ -26,41 +34,44 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
 
             sink,
 
-            _marker: std::marker::PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
 impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
-    EventSink<RunnerEvent<G>> for SampleSink<G, SE, AE, S>
+    EventSink<RunnerEvent<G>> for SampleRunnerEventSink<G, SE, AE, S>
 {
     fn emit(&mut self, event: RunnerEvent<G>) {
-        match event {
-            RunnerEvent::GameStarted { .. } => {
+        let RunnerEvent { kind, context } = event;
+
+        let Some(RunnerEventContext { game, turn, .. }) = context else {
+            return;
+        };
+
+        match kind {
+            RunnerEventKind::GameStarted => {
                 self.pending_samples.clear();
             }
-            RunnerEvent::PositionEvaluated {
-                state, evaluation, ..
-            } => {
-                let state = self.state_encoder.encode(&state);
+            RunnerEventKind::PositionEvaluated { evaluation } => {
+                let state = self.state_encoder.encode(&game);
 
                 let mut policy = vec![0.0; self.action_encoder.size()];
 
                 for PolicyItem { action, prior } in evaluation.policy {
                     let action_index = self.action_encoder.encode(&action);
+
                     policy[action_index] = prior;
                 }
 
                 self.pending_samples.push(PendingSample { state, policy });
             }
-            RunnerEvent::GameFinished { outcome, turn, .. } => {
+            RunnerEventKind::GameFinished { outcome } => {
                 let value = match (outcome, turn) {
-                    (Outcome::Win, Turn::Player) => 1.0,
-                    (Outcome::Win, Turn::Opponent) => -1.0,
-                    (Outcome::Loss, Turn::Player) => -1.0,
-                    (Outcome::Loss, Turn::Opponent) => 1.0,
-                    (Outcome::Draw, _) => 0.0,
                     (Outcome::InProgress, _) => unreachable!(),
+                    (Outcome::Win, Turn::PlayerOne) | (Outcome::Loss, Turn::PlayerTwo) => 1.0,
+                    (Outcome::Win, Turn::PlayerTwo) | (Outcome::Loss, Turn::PlayerOne) => -1.0,
+                    (Outcome::Draw, _) => 0.0,
                 };
 
                 for PendingSample { state, policy } in self.pending_samples.drain(..) {

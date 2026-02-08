@@ -1,5 +1,6 @@
 mod action;
 mod action_encoder;
+#[allow(clippy::module_inception)]
 mod boop;
 mod state_encoder;
 

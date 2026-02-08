@@ -1,4 +1,5 @@
 mod action_encoder;
+#[allow(clippy::module_inception)]
 mod neural_network;
 mod onnx;
 mod random;

@@ -2,7 +2,7 @@ use crate::game::tic_tac_toe::TicTacToe;
 use crate::game::tic_tac_toe::action::Action;
 use crate::neural_network::ActionEncoder;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
 pub struct TicTacToeActionEncoder;
 
 impl ActionEncoder<TicTacToe> for TicTacToeActionEncoder {
@@ -18,7 +18,7 @@ impl ActionEncoder<TicTacToe> for TicTacToeActionEncoder {
         debug_assert!(action_id < Self::ACTION_COUNT);
 
         Action::Place {
-            index: action_id as u8,
+            index: u8::try_from(action_id).unwrap(),
         }
     }
 }

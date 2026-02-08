@@ -6,8 +6,11 @@ mod runner;
 mod turn;
 
 pub use evaluation::{Evaluation, PolicyItem};
-pub use event::EventSink;
+pub use event::{EventSink, NullEventSink};
 pub use game::{Game, Outcome};
 pub use player::{Choice, Player};
-pub use runner::{NullSink, Runner, RunnerEvent, StatisticsSink, StdoutSink};
+pub use runner::{
+    Runner, RunnerEvent, RunnerEventContext, RunnerEventKind, StatisticsRunnerEventSink,
+    StdoutRunnerEventSink,
+};
 pub use turn::Turn;

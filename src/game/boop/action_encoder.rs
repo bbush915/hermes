@@ -2,7 +2,7 @@ use crate::game::boop::Boop;
 use crate::game::boop::action::{Action, Piece};
 use crate::neural_network::ActionEncoder;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
 pub struct BoopActionEncoder;
 
 impl BoopActionEncoder {
@@ -45,27 +45,27 @@ impl ActionEncoder<Boop> for BoopActionEncoder {
         debug_assert!(action_id < Self::ACTION_COUNT);
 
         if action_id < Self::PLACE_COUNT {
-            let index = (action_id / 2) as u8;
+            let index = u8::try_from(action_id / 2).unwrap();
 
-            let piece = if action_id % 2 == 0 {
+            let piece = if action_id.is_multiple_of(2) {
                 Piece::Kitten
             } else {
                 Piece::Cat
             };
 
-            return Action::Place { piece, index };
+            Action::Place { piece, index }
         } else if action_id - Self::PLACE_COUNT < Self::GRADUATE_THREE_IN_A_ROW_COUNT {
             let index = action_id - Self::PLACE_COUNT;
 
-            return Action::Graduate {
+            Action::Graduate {
                 mask: Boop::THREE_IN_A_ROW_MASKS[index],
-            };
+            }
         } else {
             let index = action_id - Self::PLACE_COUNT - Self::GRADUATE_THREE_IN_A_ROW_COUNT;
 
-            return Action::Graduate {
+            Action::Graduate {
                 mask: 1u64 << index,
-            };
+            }
         }
     }
 }

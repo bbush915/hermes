@@ -17,7 +17,7 @@ pub struct OnnxNeuralNetwork<G: Game, SE: StateEncoder<G>> {
 
     state_encoder: SE,
 
-    _marker: PhantomData<G>,
+    _phantom: PhantomData<G>,
 }
 
 impl<G: Game, SE: StateEncoder<G>> OnnxNeuralNetwork<G, SE> {
@@ -32,7 +32,7 @@ impl<G: Game, SE: StateEncoder<G>> OnnxNeuralNetwork<G, SE> {
 
             state_encoder,
 
-            _marker: PhantomData,
+            _phantom: PhantomData,
         })
     }
 
@@ -48,6 +48,10 @@ impl<G: Game, SE: StateEncoder<G>> OnnxNeuralNetwork<G, SE> {
 }
 
 impl<G: Game, SE: StateEncoder<G>> NeuralNetwork for OnnxNeuralNetwork<G, SE> {
+    fn with_seed(self, _seed: u64) -> Self {
+        self
+    }
+
     fn forward(&mut self, input: &[f32]) -> (Vec<f32>, f32) {
         let tensor = Tensor::from_array((self.state_encoder.shape(), input.to_vec()))
             .expect("failed to create tensor");

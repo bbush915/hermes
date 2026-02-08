@@ -4,7 +4,7 @@ use crate::core::game::Game;
 pub trait Player<G: Game>: Clone {
     fn name(&self) -> &str;
 
-    fn choose_action(&mut self, game: &G) -> Choice<G>;
+    fn choose_action(&mut self, game: &G, turn_number: u32) -> Choice<G>;
 }
 
 pub struct Choice<G: Game> {

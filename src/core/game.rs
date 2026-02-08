@@ -34,12 +34,14 @@ pub enum Outcome {
 impl Outcome {
     pub fn display(&self, turn: Turn) -> String {
         match (self, turn) {
-            (Outcome::Win, Turn::Player) => "Player wins!".to_string(),
-            (Outcome::Win, Turn::Opponent) => "Opponent wins!".to_string(),
-            (Outcome::Loss, Turn::Player) => "Player loses!".to_string(),
-            (Outcome::Loss, Turn::Opponent) => "Opponent loses!".to_string(),
-            (Outcome::Draw, _) => "Game is a draw!".to_string(),
             (Outcome::InProgress, _) => "Game is in progress.".to_string(),
+            (Outcome::Win, Turn::PlayerOne) | (Outcome::Loss, Turn::PlayerTwo) => {
+                "Player 1 wins!".to_string()
+            }
+            (Outcome::Win, Turn::PlayerTwo) | (Outcome::Loss, Turn::PlayerOne) => {
+                "Player 2 wins!".to_string()
+            }
+            (Outcome::Draw, _) => "Game is a draw!".to_string(),
         }
     }
 }

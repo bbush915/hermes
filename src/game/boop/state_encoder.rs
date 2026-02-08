@@ -1,7 +1,7 @@
 use crate::game::boop::boop::{Boop, Phase};
 use crate::neural_network::StateEncoder;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
 pub struct BoopStateEncoder;
 
 impl BoopStateEncoder {
@@ -11,7 +11,6 @@ impl BoopStateEncoder {
         BoopStateEncoder
     }
 
-    #[inline(always)]
     fn plane_slice(planes: &mut [f32], plane_index: usize) -> &mut [f32] {
         let plane_size = Boop::BOARD_SIZE * Boop::BOARD_SIZE;
 
@@ -21,14 +20,12 @@ impl BoopStateEncoder {
         &mut planes[start..end]
     }
 
-    #[inline(always)]
     fn bitboard_to_plane(bits: u64, plane: &mut [f32]) {
-        for i in 0..Boop::BOARD_SIZE * Boop::BOARD_SIZE {
-            plane[i] = ((bits >> i) & 1) as f32;
+        for (i, value) in plane.iter_mut().enumerate() {
+            *value = ((bits >> i) & 1) as f32;
         }
     }
 
-    #[inline(always)]
     fn scalar_to_plane(value: f32, plane: &mut [f32]) {
         for entry in plane.iter_mut() {
             *entry = value;
@@ -53,36 +50,36 @@ impl StateEncoder<Boop> for BoopStateEncoder {
         Self::bitboard_to_plane(state.opponent_kittens, Self::plane_slice(&mut planes, 3));
 
         Self::scalar_to_plane(
-            matches!(state.phase, Phase::Place) as u8 as f32,
+            f32::from(matches!(state.phase, Phase::Place)),
             Self::plane_slice(&mut planes, 4),
         );
 
         Self::scalar_to_plane(
-            matches!(state.phase, Phase::Graduate) as u8 as f32,
+            f32::from(matches!(state.phase, Phase::Graduate)),
             Self::plane_slice(&mut planes, 5),
         );
 
         let player_pool = state.player_pool();
 
         Self::scalar_to_plane(
-            player_pool.kittens_available as f32 / Boop::POOL_SIZE as f32,
+            f32::from(player_pool.kittens_available) / f32::from(Boop::POOL_SIZE),
             Self::plane_slice(&mut planes, 6),
         );
 
         Self::scalar_to_plane(
-            player_pool.cats_available as f32 / Boop::POOL_SIZE as f32,
+            f32::from(player_pool.cats_available) / f32::from(Boop::POOL_SIZE),
             Self::plane_slice(&mut planes, 7),
         );
 
         let opponent_pool = state.opponent_pool();
 
         Self::scalar_to_plane(
-            opponent_pool.kittens_available as f32 / Boop::POOL_SIZE as f32,
+            f32::from(opponent_pool.kittens_available) / f32::from(Boop::POOL_SIZE),
             Self::plane_slice(&mut planes, 8),
         );
 
         Self::scalar_to_plane(
-            opponent_pool.cats_available as f32 / Boop::POOL_SIZE as f32,
+            f32::from(opponent_pool.cats_available) / f32::from(Boop::POOL_SIZE),
             Self::plane_slice(&mut planes, 9),
         );
 

@@ -1,7 +1,7 @@
 use crate::game::tic_tac_toe::tic_tac_toe::TicTacToe;
 use crate::neural_network::StateEncoder;
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
 pub struct TicTacToeStateEncoder;
 
 impl TicTacToeStateEncoder {
@@ -11,7 +11,6 @@ impl TicTacToeStateEncoder {
         TicTacToeStateEncoder
     }
 
-    #[inline(always)]
     fn plane_slice(planes: &mut [f32], plane_index: usize) -> &mut [f32] {
         let plane_size = TicTacToe::BOARD_SIZE * TicTacToe::BOARD_SIZE;
 
@@ -21,17 +20,9 @@ impl TicTacToeStateEncoder {
         &mut planes[start..end]
     }
 
-    #[inline(always)]
     fn bitboard_to_plane(bits: u16, plane: &mut [f32]) {
-        for i in 0..TicTacToe::BOARD_SIZE * TicTacToe::BOARD_SIZE {
-            plane[i] = ((bits >> i) & 1) as f32;
-        }
-    }
-
-    #[inline(always)]
-    fn scalar_to_plane(value: f32, plane: &mut [f32]) {
-        for entry in plane.iter_mut() {
-            *entry = value;
+        for (i, value) in plane.iter_mut().enumerate() {
+            *value = f32::from((bits >> i) & 1);
         }
     }
 }
