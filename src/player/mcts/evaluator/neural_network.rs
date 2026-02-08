@@ -1,7 +1,8 @@
+use std::f32;
 use std::marker::PhantomData;
 
 use crate::core::{Evaluation, Game, PolicyItem};
-use crate::neural_network::{ActionEncoder, NeuralNetwork, StateEncoder};
+use crate::neural_network::{ActionEncoder, NeuralNetwork, Prediction, StateEncoder};
 use crate::player::mcts::evaluator::Evaluator;
 
 #[derive(Clone)]
@@ -46,24 +47,30 @@ where
     fn evaluate(&mut self, game: &G) -> Evaluation<G> {
         let state = self.state_encoder.encode(game);
 
-        let (policy_logits, value) = self.neural_network.forward(&state);
+        let Prediction {
+            policy_logits,
+            value,
+        } = self.neural_network.predict(&state);
 
         let actions = game.get_possible_actions();
 
         let mut policy = Vec::with_capacity(actions.len());
-        let mut sum = 0.0;
+        let mut total = 0.0;
 
         for action in actions {
             let action_id = self.action_encoder.encode(&action);
 
-            let prior = policy_logits[action_id].exp();
-            sum += prior;
+            let value = policy_logits[action_id].exp();
+            total += value;
 
-            policy.push(PolicyItem { action, prior });
+            policy.push(PolicyItem {
+                action,
+                prior: value,
+            });
         }
 
-        for PolicyItem { prior, .. } in &mut policy {
-            *prior /= sum.max(1e-8);
+        for PolicyItem { prior: value, .. } in &mut policy {
+            *value /= total.max(f32::EPSILON);
         }
 
         Evaluation { policy, value }

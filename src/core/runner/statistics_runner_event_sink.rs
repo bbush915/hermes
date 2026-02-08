@@ -48,17 +48,17 @@ impl<G: Game> EventSink<RunnerEvent<G>> for StatisticsRunnerEventSink {
                 println!("Statistics:");
                 println!("\tTotal Games: {}", self.total_games);
                 println!(
-                    "\tPlayer 1 Wins: {} ({}%)",
+                    "\tPlayer 1 Wins: {} ({:.2}%)",
                     self.player_1_wins,
                     self.player_1_wins as f32 / self.total_games as f32 * 100.0
                 );
                 println!(
-                    "\tPlayer 2 Wins: {} ({}%)",
+                    "\tPlayer 2 Wins: {} ({:.2}%)",
                     self.player_2_wins,
                     self.player_2_wins as f32 / self.total_games as f32 * 100.0
                 );
                 println!(
-                    "\tDraws: {} ({}%)",
+                    "\tDraws: {} ({:.2}%)",
                     self.draws,
                     self.draws as f32 / self.total_games as f32 * 100.0
                 );

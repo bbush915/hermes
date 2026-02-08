@@ -8,7 +8,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::value::Tensor;
 
 use crate::core::Game;
-use crate::neural_network::neural_network::NeuralNetwork;
+use crate::neural_network::neural_network::{NeuralNetwork, Prediction};
 use crate::neural_network::state_encoder::StateEncoder;
 
 #[derive(Clone)]
@@ -35,16 +35,6 @@ impl<G: Game, SE: StateEncoder<G>> OnnxNeuralNetwork<G, SE> {
             _phantom: PhantomData,
         })
     }
-
-    fn softmax(logits: &[f32]) -> Vec<f32> {
-        let max_logit = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-
-        let exps: Vec<f32> = logits.iter().map(|&x| (x - max_logit).exp()).collect();
-
-        let sum: f32 = exps.iter().sum();
-
-        exps.iter().map(|&e| e / sum).collect()
-    }
 }
 
 impl<G: Game, SE: StateEncoder<G>> NeuralNetwork for OnnxNeuralNetwork<G, SE> {
@@ -52,7 +42,7 @@ impl<G: Game, SE: StateEncoder<G>> NeuralNetwork for OnnxNeuralNetwork<G, SE> {
         self
     }
 
-    fn forward(&mut self, input: &[f32]) -> (Vec<f32>, f32) {
+    fn predict(&mut self, input: &[f32]) -> Prediction {
         let tensor = Tensor::from_array((self.state_encoder.shape(), input.to_vec()))
             .expect("failed to create tensor");
 
@@ -69,12 +59,13 @@ impl<G: Game, SE: StateEncoder<G>> NeuralNetwork for OnnxNeuralNetwork<G, SE> {
             .copied()
             .collect();
 
-        let policy = Self::softmax(&policy_logits);
-
         let value = outputs["value"]
             .try_extract_array::<f32>()
             .expect("failed to extract value")[0];
 
-        (policy, value)
+        Prediction {
+            policy_logits,
+            value,
+        }
     }
 }

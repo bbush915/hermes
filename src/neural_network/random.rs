@@ -1,7 +1,8 @@
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
+use rand_distr::{Distribution, Normal};
 
-use crate::neural_network::neural_network::NeuralNetwork;
+use crate::neural_network::neural_network::{NeuralNetwork, Prediction};
 
 #[derive(Clone)]
 pub struct RandomNeuralNetwork {
@@ -27,17 +28,18 @@ impl NeuralNetwork for RandomNeuralNetwork {
         self
     }
 
-    fn forward(&mut self, _input: &[f32]) -> (Vec<f32>, f32) {
-        let rng = &mut self.rng;
+    fn predict(&mut self, _input: &[f32]) -> Prediction {
+        let distribution = Normal::new(0.0, 1.0).unwrap();
 
-        let mut logits = vec![0.0; self.policy_size];
+        let policy_logits = std::iter::from_fn(|| Some(distribution.sample(&mut self.rng)))
+            .take(self.policy_size)
+            .collect();
 
-        for logit in &mut logits {
-            *logit = rng.r#gen::<f32>();
+        let value = self.rng.r#gen::<f32>() * 2.0 - 1.0;
+
+        Prediction {
+            policy_logits,
+            value,
         }
-
-        let value = rng.r#gen::<f32>() * 2.0 - 1.0;
-
-        (logits, value)
     }
 }

@@ -45,7 +45,7 @@ fn main() {
         neural_network,
     )
     .with_dirichlet_noise(DirichletNoise {
-        alpha: 0.5,
+        alpha: 0.3,
         epsilon: 0.25,
     })
     .with_temperature_schedule(TemperatureSchedule::Step {
