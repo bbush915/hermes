@@ -56,72 +56,80 @@ def load_jsonl(filepath: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         policies: (N, 188) numpy array
         values: (N,) numpy array
     """
-    states = []
-    policies = []
-    values = []
+    states: List[np.ndarray] = []
+    policies: List[np.ndarray] = []
+    values: List[float] = []
     
-    filepath = Path(filepath)
+    path = Path(filepath)
     
-    if not filepath.exists():
-        raise FileNotFoundError(f"Data file not found: {filepath}")
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
     
-    print(f"Loading data from {filepath}...")
+    print(f"Loading data from {path}...")
     
-    with open(filepath, 'r') as f:
-        for line_num, line in enumerate(f, 1):
+    with open(path, 'r') as f:
+        for line_number, line in enumerate(f, 1):
             line = line.strip()
+
             if not line:
                 continue
             
             try:
                 sample = json.loads(line)
                 
-                # Validate sample structure
                 if not all(key in sample for key in ['state', 'policy', 'value']):
-                    warnings.warn(f"Line {line_num}: Missing required keys, skipping")
+                    warnings.warn(f"Line {line_number}: Missing required keys, skipping...")
                     continue
+
+                # NOTE - State
                 
-                # Extract and validate state
                 state = np.array(sample['state'], dtype=np.float32)
-                if state.shape != (360,):  # 10 * 6 * 6
-                    warnings.warn(f"Line {line_num}: Invalid state shape {state.shape}, skipping")
+
+                if state.shape != (360,):
+                    warnings.warn(f"Line {line_number}: Invalid state shape {state.shape}, skipping...")
                     continue
+
                 state = state.reshape(10, 6, 6)
                 
-                # Extract and validate policy
+                # NOTE - Policy
+
                 policy = np.array(sample['policy'], dtype=np.float32)
+
                 if policy.shape != (188,):
-                    warnings.warn(f"Line {line_num}: Invalid policy shape {policy.shape}, skipping")
+                    warnings.warn(f"Line {line_number}: Invalid policy shape {policy.shape}, skipping...")
                     continue
                 
-                # Normalize policy (should already be normalized, but just in case)
                 policy_sum = policy.sum()
+
                 if not np.isclose(policy_sum, 1.0, atol=1e-5):
                     if policy_sum > 0:
                         policy = policy / policy_sum
                     else:
-                        warnings.warn(f"Line {line_num}: Policy sums to 0, skipping")
+                        warnings.warn(f"Line {line_number}: Policy sums to 0, skipping...")
                         continue
                 
-                # Extract and validate value
+                # NOTE - Value
+
                 value = float(sample['value'])
+
                 if not -1.0 <= value <= 1.0:
-                    warnings.warn(f"Line {line_num}: Value {value} out of range [-1, 1], skipping")
+                    warnings.warn(f"Line {line_number}: Value {value} out of range [-1, 1], skipping...")
                     continue
                 
                 states.append(state)
                 policies.append(policy)
                 values.append(value)
                 
-            except json.JSONDecodeError as e:
-                warnings.warn(f"Line {line_num}: JSON decode error - {e}, skipping")
+            except json.JSONDecodeError as error:
+                warnings.warn(f"Line {line_number}: JSON decode error - {error}, skipping...")
                 continue
-            except Exception as e:
-                warnings.warn(f"Line {line_num}: Unexpected error - {e}, skipping")
+
+            except Exception as error:
+                warnings.warn(f"Line {line_number}: Unexpected error - {error}, skipping...")
                 continue
     
     if len(states) == 0:
-        raise ValueError(f"No valid samples found in {filepath}")
+        raise ValueError(f"No valid samples found in {path}")
     
     states = np.array(states, dtype=np.float32)
     policies = np.array(policies, dtype=np.float32)
@@ -194,7 +202,7 @@ def create_data_loader(
         batch_size=batch_size,
         shuffle=shuffle,
         num_workers=num_workers,
-        pin_memory=True  # Faster GPU transfer
+        pin_memory=True
     )
     
     return loader
@@ -319,6 +327,7 @@ def load_preprocessed(filepath: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray
         values: (N,) numpy array
     """
     data = np.load(filepath)
+
     return data['states'], data['policies'], data['values']
 
 
