@@ -2,10 +2,14 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import init from "./wasm/hermes_wasm";
+
 import { ThemeProvider } from "./components/theme-provider";
 import { routeTree } from "./routeTree.gen";
 
 import "./index.css";
+
+await init();
 
 const router = createRouter({
   routeTree,

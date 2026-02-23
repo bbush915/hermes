@@ -52,7 +52,7 @@ export function Sidebar() {
                 <SidebarMenuButton asChild>
                   <Link to="/games/tic-tac-toe">
                     <HashIcon />
-                    <span>Tic Tac Toe</span>
+                    <span>Tic-Tac-Toe</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
