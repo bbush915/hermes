@@ -1,11 +1,11 @@
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng, rng};
 
 use crate::core::{Evaluation, Game, PolicyItem};
 use crate::player::mcts::expander::Expander;
 use crate::player::mcts::tree::Node;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct RandomExpander {
     rng: StdRng,
 }
@@ -13,7 +13,7 @@ pub struct RandomExpander {
 impl RandomExpander {
     pub fn new() -> Self {
         RandomExpander {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
         }
     }
 }
@@ -36,7 +36,7 @@ impl<G: Game> Expander<G> for RandomExpander {
             return vec![];
         }
 
-        let action_index = self.rng.gen_range(0..node.unexplored_actions.len());
+        let action_index = self.rng.random_range(0..node.unexplored_actions.len());
         let action = node.unexplored_actions[action_index];
 
         node.unexplored_actions.swap_remove(action_index);

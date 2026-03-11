@@ -67,12 +67,12 @@ where
     where
         G: Send,
         G::Action: Send,
-        P1: Clone + Send,
-        P2: Clone + Send,
+        P1: Send,
+        P2: Send,
     {
         #[cfg(not(target_arch = "wasm32"))]
         if self.threads > 1 {
-            self.run_parallel();
+            // self.run_parallel();
             return;
         }
 
@@ -148,7 +148,13 @@ where
                         Turn::Player2
                     };
 
-                    run_single_game(game_number as u32, initial_turn, &mut p1, &mut p2, max_turns)
+                    run_single_game(
+                        game_number as u32,
+                        initial_turn,
+                        &mut p1,
+                        &mut p2,
+                        max_turns,
+                    )
                 })
                 .collect()
         });

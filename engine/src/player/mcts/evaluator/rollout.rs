@@ -1,11 +1,11 @@
-use rand::SeedableRng;
 use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
+use rand::{SeedableRng, rng};
 
 use crate::core::{Evaluation, Game, Outcome, PolicyItem};
 use crate::player::mcts::evaluator::Evaluator;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct RolloutEvaluator {
     rng: StdRng,
 }
@@ -13,7 +13,7 @@ pub struct RolloutEvaluator {
 impl RolloutEvaluator {
     pub fn new() -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
         }
     }
 

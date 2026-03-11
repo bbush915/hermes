@@ -1,6 +1,6 @@
-use rand::SeedableRng;
 use rand::rngs::StdRng;
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
+use rand::{SeedableRng, rng};
 
 use crate::core::{Choice, Game, Player};
 
@@ -11,7 +11,7 @@ pub struct RandomPlayer {
 impl Clone for RandomPlayer {
     fn clone(&self) -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
         }
     }
 }
@@ -19,7 +19,7 @@ impl Clone for RandomPlayer {
 impl RandomPlayer {
     pub fn new() -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
         }
     }
 

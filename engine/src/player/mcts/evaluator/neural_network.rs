@@ -5,7 +5,6 @@ use crate::core::{Evaluation, Game, PolicyItem};
 use crate::neural_network::{ActionEncoder, NeuralNetwork, Prediction, StateEncoder};
 use crate::player::mcts::evaluator::Evaluator;
 
-#[derive(Clone)]
 pub struct NeuralNetworkEvaluator<
     G: Game,
     SE: StateEncoder<G>,

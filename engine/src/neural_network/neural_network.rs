@@ -1,4 +1,4 @@
-pub trait NeuralNetwork: Clone {
+pub trait NeuralNetwork {
     fn with_seed(self, seed: u64) -> Self;
 
     fn predict(&mut self, input: &[f32]) -> Prediction;

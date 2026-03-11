@@ -55,7 +55,6 @@ type BoopNnPlayer = NeuralNetworkMctsPlayer<
     OnnxNeuralNetwork<Boop, BoopStateEncoder>,
 >;
 
-#[derive(Clone)]
 enum BoopPlayer {
     Random(RandomPlayer),
     Minimax(MinimaxPlayer),
@@ -235,8 +234,7 @@ fn main() {
         ratings.insert(name2.clone(), elo2_after.unwrap());
 
         if let Some(path) = &args.ratings {
-            let json =
-                serde_json::to_string_pretty(&ratings).expect("failed to serialize ratings");
+            let json = serde_json::to_string_pretty(&ratings).expect("failed to serialize ratings");
             fs::write(path, json).expect("failed to write ratings file");
         }
 

@@ -1,10 +1,9 @@
 use rand::rngs::StdRng;
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng, rng};
 use rand_distr::{Distribution, Normal};
 
 use crate::neural_network::neural_network::{NeuralNetwork, Prediction};
 
-#[derive(Clone)]
 pub struct RandomNeuralNetwork {
     rng: StdRng,
 
@@ -14,7 +13,7 @@ pub struct RandomNeuralNetwork {
 impl RandomNeuralNetwork {
     pub fn new(policy_size: usize) -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
 
             policy_size,
         }
@@ -35,7 +34,7 @@ impl NeuralNetwork for RandomNeuralNetwork {
             .take(self.policy_size)
             .collect();
 
-        let value = self.rng.r#gen::<f32>() * 2.0 - 1.0;
+        let value = self.rng.random::<f32>() * 2.0 - 1.0;
 
         Prediction {
             policy_logits,

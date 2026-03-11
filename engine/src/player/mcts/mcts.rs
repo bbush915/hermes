@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 
-use rand::SeedableRng;
-use rand::distributions::WeightedIndex;
+use rand::distr::weighted::WeightedIndex;
 use rand::rngs::StdRng;
-use rand_distr::{Dirichlet, Distribution};
+use rand::{SeedableRng, rng};
+use rand_distr::Distribution;
+use rand_distr::multi::Dirichlet;
 
 use crate::core::{Evaluation, Game, PolicyItem};
 use crate::player::mcts::evaluator::Evaluator;
@@ -33,13 +34,17 @@ impl<G: Game, E: Evaluator<G> + Clone, S: Scorer<G> + Clone, X: Expander<G> + Cl
 {
     fn clone(&self) -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
+
             simulations: self.simulations,
+
             evaluator: self.evaluator.clone(),
             scorer: self.scorer.clone(),
             expander: self.expander.clone(),
+
             dirichlet_noise: self.dirichlet_noise,
             temperature_schedule: self.temperature_schedule.clone(),
+
             _phantom: PhantomData,
         }
     }
@@ -48,7 +53,7 @@ impl<G: Game, E: Evaluator<G> + Clone, S: Scorer<G> + Clone, X: Expander<G> + Cl
 impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
     pub fn new(options: MtcsOptions<G, E, S, X>) -> Self {
         Self {
-            rng: StdRng::from_entropy(),
+            rng: StdRng::from_rng(&mut rng()),
 
             simulations: options.simulations,
 
