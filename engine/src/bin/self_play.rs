@@ -28,6 +28,9 @@ struct Args {
     #[arg(short, long, default_value_t = false)]
     use_symmetries: bool,
 
+    #[arg(short, long, default_value_t = 1)]
+    threads: usize,
+
     #[arg(short, long, default_value = None)]
     output: Option<PathBuf>,
 }
@@ -80,15 +83,17 @@ fn main() {
             json_sink,
         );
 
-        let mut runner =
-            Runner::new(args.games, player_1, player_2, sample_sink).with_max_turns(args.max_turns);
+        let mut runner = Runner::new(args.games, player_1, player_2, sample_sink)
+            .with_max_turns(args.max_turns)
+            .with_threads(args.threads);
 
         runner.run();
     } else {
         let statistics_sink = StatisticsRunnerEventSink::new();
 
         let mut runner = Runner::new(args.games, player_1, player_2, statistics_sink)
-            .with_max_turns(args.max_turns);
+            .with_max_turns(args.max_turns)
+            .with_threads(args.threads);
 
         runner.run();
     }

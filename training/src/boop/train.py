@@ -11,17 +11,38 @@ This implements the AlphaZero training loop:
 import argparse
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import time
 from datetime import datetime
 import json
+from collections.abc import Sized
+from typing import Any, TypedDict, cast
 
 from network import BoopNetwork, create_network
 from data import load_jsonl, load_multiple_jsonl, create_data_loader, validate_data
 
 
-def get_best_device():
+class TrainMetrics(TypedDict):
+    total_loss: float
+    policy_loss: float
+    value_loss: float
+
+
+class EvalMetrics(TypedDict):
+    value_accuracy: float
+    policy_top1_accuracy: float
+
+
+class EpochRecord(TypedDict):
+    epoch: int
+    train: TrainMetrics
+    val: EvalMetrics | None
+    time: float
+
+
+def get_best_device() -> str:
     """
     Automatically select the best available device.
     
@@ -43,12 +64,12 @@ class Trainer:
     
     def __init__(
         self,
-        model,
-        device=None,
-        learning_rate=0.001,
-        weight_decay=1e-4,
-        log_dir='runs'
-    ):
+        model: BoopNetwork,
+        device: str | None = None,
+        learning_rate: float = 0.001,
+        weight_decay: float = 1e-4,
+        log_dir: str = 'runs',
+    ) -> None:
         """
         Args:
             model: BoopNetwork instance
@@ -79,7 +100,13 @@ class Trainer:
         
         self.global_step = 0
         
-    def compute_loss(self, policy_logits, value_pred, policy_target, value_target):
+    def compute_loss(
+        self,
+        policy_logits: torch.Tensor,
+        value_pred: torch.Tensor,
+        policy_target: torch.Tensor,
+        value_target: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Compute AlphaZero loss (policy + value).
         
@@ -107,7 +134,7 @@ class Trainer:
         
         return total_loss, policy_loss, value_loss
     
-    def train_epoch(self, data_loader, epoch):
+    def train_epoch(self, data_loader: DataLoader[Any], epoch: int) -> TrainMetrics:
         """
         Train for one epoch.
         
@@ -179,7 +206,7 @@ class Trainer:
             'value_loss': avg_value_loss
         }
     
-    def evaluate_accuracy(self, data_loader):
+    def evaluate_accuracy(self, data_loader: DataLoader[Any]) -> EvalMetrics:
         """
         Evaluate model accuracy on validation data.
         
@@ -218,7 +245,7 @@ class Trainer:
             'policy_top1_accuracy': policy_top1_correct / total_samples
         }
     
-    def train(self, train_loader, num_epochs, val_loader=None):
+    def train(self, train_loader: DataLoader[Any], num_epochs: int, val_loader: DataLoader[Any] | None = None) -> list[EpochRecord]:
         """
         Main training loop.
         
@@ -232,12 +259,13 @@ class Trainer:
         """
         print(f"\nTraining on {self.device}")
         print(f"Model parameters: {self.model.get_num_parameters():,}")
-        print(f"Training samples: {len(train_loader.dataset):,}")
+        print(f"Training samples: {len(cast(Sized, train_loader.dataset)):,}")
         print(f"Batches per epoch: {len(train_loader)}")
         print(f"Epochs: {num_epochs}\n")
         
-        history = []
-        
+        history: list[EpochRecord] = []
+        val_metrics: EvalMetrics | None = None
+
         for epoch in range(num_epochs):
             print(f"Epoch {epoch + 1}/{num_epochs}")
             
@@ -270,7 +298,7 @@ class Trainer:
         print("Training completed!")
         return history
     
-    def save_checkpoint(self, filepath, epoch=None, metadata=None):
+    def save_checkpoint(self, filepath: str | Path, epoch: int | None = None, metadata: dict[str, Any] | None = None) -> None:
         """
         Save model checkpoint.
         
@@ -295,7 +323,7 @@ class Trainer:
         torch.save(checkpoint, filepath)
         print(f"Saved checkpoint to {filepath}")
     
-    def load_checkpoint(self, filepath):
+    def load_checkpoint(self, filepath: str | Path) -> dict[str, Any]:
         """
         Load model checkpoint.
         
@@ -312,7 +340,7 @@ class Trainer:
         return checkpoint
 
 
-def export_to_onnx(model, filepath, opset_version=11):
+def export_to_onnx(model: BoopNetwork, filepath: str | Path, opset_version: int = 11) -> None:
     """
     Export model to ONNX format for Rust inference.
     
@@ -333,7 +361,7 @@ def export_to_onnx(model, filepath, opset_version=11):
     # Export
     torch.onnx.export(
         model,
-        dummy_input,
+        (dummy_input,),
         filepath,
         export_params=True,
         opset_version=opset_version,
@@ -443,7 +471,7 @@ def main():
     
     # Save checkpoint
     print(f"\nSaving checkpoint...")
-    metadata = {
+    metadata: dict[str, Any] = {
         'config': config,
         'args': vars(args),
         'final_epoch': start_epoch + args.epochs,

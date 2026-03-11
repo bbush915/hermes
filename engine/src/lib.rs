@@ -5,7 +5,7 @@ mod player;
 mod self_play;
 
 pub use core::{
-    EventSink, Game, NullEventSink, Outcome, Player, Runner, RunnerEvent,
+    Choice, EventSink, Game, NullEventSink, Outcome, Player, Runner, RunnerEvent,
     StatisticsRunnerEventSink, StdoutRunnerEventSink, Turn,
 };
 pub use game::boop;

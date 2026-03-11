@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import numpy.typing as npt
 
 
 class ResidualBlock(nn.Module):
@@ -92,7 +93,7 @@ class BoopNetwork(nn.Module):
         self.value_fc1 = nn.Linear(32 * self.board_size * self.board_size, 64)
         self.value_fc2 = nn.Linear(64, 1)
         
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass.
         
@@ -130,7 +131,7 @@ class BoopNetwork(nn.Module):
         
         return policy_logits, value
     
-    def predict(self, state: torch.Tensor | np.ndarray) -> tuple[np.ndarray, float]:
+    def predict(self, state: torch.Tensor | npt.NDArray[np.float32]) -> tuple[npt.NDArray[np.float32], float]:
         """
         Predict for a single state (convenience method).
         
@@ -160,16 +161,16 @@ class BoopNetwork(nn.Module):
             
         return policy, value
     
-    def get_num_parameters(self):
+    def get_num_parameters(self) -> int:
         """Count total parameters in the network."""
         return sum(p.numel() for p in self.parameters())
-    
-    def get_num_trainable_parameters(self):
+
+    def get_num_trainable_parameters(self) -> int:
         """Count trainable parameters in the network."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 
-def create_network(config: dict[str, int] | None = None):
+def create_network(config: dict[str, int] | None = None) -> BoopNetwork:
     """
     Factory function to create a network with config.
     

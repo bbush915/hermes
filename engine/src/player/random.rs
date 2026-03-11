@@ -8,6 +8,14 @@ pub struct RandomPlayer {
     rng: StdRng,
 }
 
+impl Clone for RandomPlayer {
+    fn clone(&self) -> Self {
+        Self {
+            rng: StdRng::from_entropy(),
+        }
+    }
+}
+
 impl RandomPlayer {
     pub fn new() -> Self {
         Self {

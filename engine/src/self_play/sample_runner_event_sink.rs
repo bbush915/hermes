@@ -75,25 +75,40 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
                         policy[action_index] = *prior;
                     }
 
-                    self.pending_samples.push(PendingSample { state, policy });
+                    self.pending_samples
+                        .push(PendingSample { state, policy, turn });
                 }
             }
             RunnerEventKind::GameFinished { outcome } => {
-                let value = match (outcome, turn) {
-                    (Outcome::InProgress, _) => unreachable!(),
-                    (Outcome::Win, Turn::Player1) | (Outcome::Loss, Turn::Player2) => 1.0,
-                    (Outcome::Win, Turn::Player2) | (Outcome::Loss, Turn::Player1) => -1.0,
-                    (Outcome::Draw, _) => 0.0,
+                // `turn` here is whoever just made the last move. `outcome` is from their
+                // perspective, so Win means that player won.
+                let winner = match outcome {
+                    Outcome::InProgress => unreachable!(),
+                    Outcome::Win => Some(turn),
+                    Outcome::Loss => Some(turn.advance()),
+                    Outcome::Draw => None,
                 };
 
-                for PendingSample { state, policy } in self.pending_samples.drain(..) {
-                    let sample = Sample {
+                for PendingSample {
+                    state,
+                    policy,
+                    turn: sample_turn,
+                } in self.pending_samples.drain(..)
+                {
+                    // Value is from the current player's perspective at each position,
+                    // matching the state encoding which always encodes from current player's
+                    // perspective (flip_perspective is called on end_turn).
+                    let value = match winner {
+                        Some(w) if w == sample_turn => 1.0,
+                        Some(_) => -1.0,
+                        None => 0.0,
+                    };
+
+                    self.sink.emit(Sample {
                         state,
                         policy,
                         value,
-                    };
-
-                    self.sink.emit(sample);
+                    });
                 }
             }
             _ => {}
@@ -104,4 +119,5 @@ impl<G: Game, SE: StateEncoder<G>, AE: ActionEncoder<G>, S: EventSink<Sample>>
 struct PendingSample {
     pub state: Vec<f32>,
     pub policy: Vec<f32>,
+    pub turn: Turn,
 }

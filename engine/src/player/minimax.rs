@@ -1,5 +1,6 @@
 use crate::core::{Choice, Game, Outcome, Player};
 
+#[derive(Clone)]
 pub struct MinimaxPlayer {
     depth: usize,
 }

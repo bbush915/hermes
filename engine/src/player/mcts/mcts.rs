@@ -28,6 +28,23 @@ pub struct Mcts<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> {
     _phantom: PhantomData<G>,
 }
 
+impl<G: Game, E: Evaluator<G> + Clone, S: Scorer<G> + Clone, X: Expander<G> + Clone> Clone
+    for Mcts<G, E, S, X>
+{
+    fn clone(&self) -> Self {
+        Self {
+            rng: StdRng::from_entropy(),
+            simulations: self.simulations,
+            evaluator: self.evaluator.clone(),
+            scorer: self.scorer.clone(),
+            expander: self.expander.clone(),
+            dirichlet_noise: self.dirichlet_noise,
+            temperature_schedule: self.temperature_schedule.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<G: Game, E: Evaluator<G>, S: Scorer<G>, X: Expander<G>> Mcts<G, E, S, X> {
     pub fn new(options: MtcsOptions<G, E, S, X>) -> Self {
         Self {

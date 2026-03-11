@@ -33,7 +33,7 @@ export function Boop() {
   useEffect(() => {
     const game = new WasmBoop();
     game.player_1 = PlayerKind.Manual;
-    game.player_2 = PlayerKind.Manual;
+    game.player_2 = PlayerKind.Minimax;
     gameRef.current = game;
 
     syncState();
@@ -49,66 +49,109 @@ export function Boop() {
     return kind === PlayerKind.Manual;
   }
 
-  function winnerLabel(): string {
-    return gameRef.current!.turn === Turn.Player1
-      ? "Player 1 wins!"
-      : "Player 2 wins!";
+  function resultLabel(outcome: Outcome): string {
+    if (outcome === Outcome.Draw) return "Draw!";
+    const game = gameRef.current!;
+    const winnerIsPlayer1 =
+      outcome === Outcome.Win
+        ? game.turn === Turn.Player1
+        : game.turn === Turn.Player2;
+    return winnerIsPlayer1 ? "Player 1 wins!" : "Player 2 wins!";
   }
 
   function stepAI() {
     const game = gameRef.current!;
 
     while (!isManualTurn()) {
+      console.log("[stepAI] AI turn, calling step()");
       const outcome = game.step();
+      console.log(
+        "[stepAI] outcome:",
+        outcome,
+        "turn:",
+        game.turn,
+        "phase:",
+        game.phase,
+      );
 
       if (outcome !== Outcome.InProgress) {
-        setResult(outcome === Outcome.Win ? winnerLabel() : "Draw!");
+        setResult(resultLabel(outcome));
         setBoard([...game.board]);
         return;
       }
     }
 
+    const actions = game.get_possible_actions() as BoopAction[];
+    console.log("[stepAI] manual turn, possible actions:", actions);
     syncState();
-    setPossibleActions(game.get_possible_actions() as BoopAction[]);
+    setPossibleActions(actions);
   }
 
   function handleSquareClick(index: number) {
     const game = gameRef.current!;
+    console.log(
+      "[click] index:",
+      index,
+      "isManualTurn:",
+      isManualTurn(),
+      "phase:",
+      game.phase,
+      "isCat:",
+      isCat,
+    );
     if (result || !isManualTurn() || game.phase !== Phase.Place) return;
 
     const action = possibleActions.find(
       (a): a is PlaceAction =>
         a.type === "place" && a.square === index && a.is_cat === isCat,
     );
+    console.log("[click] matched action:", action);
     if (!action) return;
 
     game.queue_action(action);
     const outcome = game.step();
+    console.log(
+      "[click] step outcome:",
+      outcome,
+      "turn:",
+      game.turn,
+      "phase:",
+      game.phase,
+    );
 
     if (outcome !== Outcome.InProgress) {
-      setResult(outcome === Outcome.Win ? winnerLabel() : "Draw!");
+      setResult(resultLabel(outcome));
       setBoard([...game.board]);
       return;
     }
 
     syncState();
 
-    stepAI();
+    setTimeout(stepAI, 5000);
   }
 
   function handleGraduateAction(action: GraduateAction) {
     const game = gameRef.current!;
+    console.log("[graduate] action:", action);
 
     game.queue_action(action);
     const outcome = game.step();
+    console.log(
+      "[graduate] step outcome:",
+      outcome,
+      "turn:",
+      game.turn,
+      "phase:",
+      game.phase,
+    );
 
     if (outcome !== Outcome.InProgress) {
-      setResult(outcome === Outcome.Win ? winnerLabel() : "Draw!");
+      setResult(resultLabel(outcome));
       setBoard([...game.board]);
       return;
     }
 
-    stepAI();
+    setTimeout(stepAI, 5000);
   }
 
   const validSquares =

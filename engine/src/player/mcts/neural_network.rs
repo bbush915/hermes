@@ -7,6 +7,7 @@ use crate::player::mcts::noise::DirichletNoise;
 use crate::player::mcts::scorer::PuctScorer;
 use crate::player::mcts::temperature::TemperatureSchedule;
 
+#[derive(Clone)]
 pub struct NeuralNetworkMctsPlayer<
     G: Game,
     SE: StateEncoder<G>,
